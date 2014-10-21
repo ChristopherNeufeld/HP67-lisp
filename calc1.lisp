@@ -23,6 +23,15 @@
 ;;
 
 
+(defstruct (location)
+  (row		nil)     ;; 1-offset row number
+  (column	nil)     ;; 1-offset column number
+  (shift	:UNSHIFTED)
+  (width	1)
+  (category-1	nil)
+  (category-2	nil))
+
+
 (define-condition not-real-number (error)
   ((val		:initarg value
                 :reader get-val))
@@ -350,3 +359,55 @@
                            `(,@run-mode-forms)
                            :update-last-x updates-last-x))))
   (values))
+
+
+(define-op-key 
+    (:location (make-location
+                :row 5
+                :col 1
+                :category-1 :ARITHMETIC)
+               :abbreviation "-" 
+               :documentation "Subtracts X from Y")
+  X <- (- Y X))
+
+(define-op-key 
+    (:location (make-location
+                :row 6
+                :col 1
+                :category-1 :ARITHMETIC)
+               :abbreviation "+" 
+               :documentation "Adds X to Y")
+  X <- (+ Y X))
+
+(define-op-key 
+    (:location (make-location
+                :row 7
+                :col 1
+                :category-1 :ARITHMETIC)
+               :abbreviation "*" 
+               :documentation "Multiplies Y by X")
+  X <- (* Y X))
+
+(define-op-key 
+    (:location (make-location
+                :row 8
+                :col 1
+                :category-1 :ARITHMETIC)
+               :abbreviation "/" 
+               :documentation "Divides Y by X")
+  X <- (/ Y X))
+
+(define-op-key 
+    (:location (make-location
+                :row 8
+                :col 1
+                :shift :H-BLACK
+                :category-1 :ARITHMETIC)
+               :abbreviation "!" 
+               :documentation "Computes X factorial")
+  (assert (and (integerp X)
+               (>= X 0)))
+  (let ((result 1))
+    (dotimes (i X)
+      (setf result (* result (1+ i))))
+    X <- result))
