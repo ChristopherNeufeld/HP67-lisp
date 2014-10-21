@@ -368,7 +368,7 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "-" 
                :documentation "Subtracts X from Y")
-  X <- (- Y X))
+    X <- (- Y X))
 
 (define-op-key 
     (:location (make-location
@@ -377,7 +377,7 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "+" 
                :documentation "Adds X to Y")
-  X <- (+ Y X))
+    X <- (+ Y X))
 
 (define-op-key 
     (:location (make-location
@@ -386,7 +386,7 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "*" 
                :documentation "Multiplies Y by X")
-  X <- (* Y X))
+    X <- (* Y X))
 
 (define-op-key 
     (:location (make-location
@@ -395,7 +395,7 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "/" 
                :documentation "Divides Y by X")
-  X <- (/ Y X))
+    X <- (/ Y X))
 
 (define-op-key 
     (:location (make-location
@@ -405,8 +405,8 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "!" 
                :documentation "Computes X factorial")
-  (assert (and (integerp X)
-               (>= X 0)))
+    (assert (and (integerp X)
+                 (>= X 0)))
   (let ((result 1))
     (dotimes (i X)
       (setf result (* result (1+ i))))
