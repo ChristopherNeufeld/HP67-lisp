@@ -46,9 +46,126 @@
   (num-registers	4)
   (last-x		nil)
 
+  (memory		nil)
+  (register-i		0)
+  (flags		'(("0" . nil)
+                          ("1" . nil)
+                          ("2" . nil)
+                          ("3" . nil)))
+
   (use-rationals-p	nil)
   (complex-allowed-p	nil)
   (error-state		nil))
+
+
+
+(defun memory-name (name)
+  (etypecase name
+    (string (copy-seq name))
+    (integer (format nil "~D" name))))
+
+(defun convert-indirection-name (name)
+  (assert (numberp name))
+  (let ((num (floor name)))
+    (cond
+      ((or (< num 0) (> num 25))
+       "")
+      ((= num 25)
+       (values t t))
+      ((> num 19)
+       (subseq "ABCDE" (- num 20) (- num 19)))
+      (t
+       (format nil "~D" num)))))
+
+
+
+(defun store-memory (stack name val &key indirection)
+  (let (converted use-i-reg)
+    (cond
+      (indirection
+       (multiple-value-bind (c-name special-i-reg)
+           (convert-indirection-name name)
+         (setf use-i-reg special-i-reg
+               converted c-name)))
+      (t
+       (setf converted (memory-name name))))
+
+    (cond
+      (use-i-reg
+       (setf (stack-register-i stack) val))
+      (t
+       (setf (stack-memory stack)
+             (delete-duplicates
+              (push (cons converted val)
+                    (stack-memory stack))
+              :key 'car
+              :test 'string=
+              :from-end t)))))
+  val)
+
+
+(defun recall-memory (stack name &key indirection)
+  (let (converted use-i-reg)
+    (cond
+      (indirection
+       (multiple-value-bind (c-name special-i-reg)
+           (convert-indirection-name name)
+         (setf use-i-reg special-i-reg
+               converted c-name)))
+      (t
+       (setf converted (memory-name name))))
+    (cond
+      (use-i-reg
+       (stack-register-i stack))
+      (t
+       (let ((record (assoc converted
+                            (stack-memory stack)
+                            :test 'string=)))
+         (if record
+             (cdr record)
+             0))))))
+
+
+(defun set-flag (stack name &key clear)
+  (let* ((converted (memory-name name))
+         (record (assoc converted (stack-flags stack)
+                        :test 'string=)))
+    (cond
+      (record
+       (setf (cdr record) (not clear)))
+      (t
+       (setf (stack-flags stack)
+             (push (cons converted (not clear))
+                   (stack-flags stack)))))))
+
+(defun clear-flag (stack name)
+  (set-flag stack name :clear t))
+
+(defun get-flag (stack name)
+  (let* ((converted (memory-name name))
+         (record (assoc converted (stack-flags stack)
+                        :test 'string=))
+         (rval (cdr record)))
+    (when (or (string= converted "2")
+              (string= converted "3"))
+      (clear-flag stack name))
+    rval))
+
+
+(defun set-i-register (stack value)
+  (setf (stack-register-i stack) value))
+
+(defun swap-primary-secondary (stack)
+  (dotimes (i 10)
+    (let ((val-prim (recall-memory stack i
+                                   :indirection t))
+          (val-second (recall-memory stack (+ i 10)
+                                     :indirection t)))
+      (store-memory stack i val-second
+                    :indirection t)
+      (store-memory stack (+ i 10) val-prim
+                    :indirection t))))
+  
 
 
 (defun backup-stack (stack)
@@ -368,7 +485,7 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "-" 
                :documentation "Subtracts X from Y")
-    X <- (- Y X))
+  X <- (- Y X))
 
 (define-op-key 
     (:location (make-location
@@ -377,7 +494,7 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "+" 
                :documentation "Adds X to Y")
-    X <- (+ Y X))
+  X <- (+ Y X))
 
 (define-op-key 
     (:location (make-location
@@ -386,7 +503,7 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "*" 
                :documentation "Multiplies Y by X")
-    X <- (* Y X))
+  X <- (* Y X))
 
 (define-op-key 
     (:location (make-location
@@ -395,7 +512,7 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "/" 
                :documentation "Divides Y by X")
-    X <- (/ Y X))
+  X <- (/ Y X))
 
 (define-op-key 
     (:location (make-location
@@ -405,8 +522,8 @@
                 :category-1 :ARITHMETIC)
                :abbreviation "!" 
                :documentation "Computes X factorial")
-    (assert (and (integerp X)
-                 (>= X 0)))
+  (assert (and (integerp X)
+               (>= X 0)))
   (let ((result 1))
     (dotimes (i X)
       (setf result (* result (1+ i))))
