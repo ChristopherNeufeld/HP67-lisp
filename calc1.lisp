@@ -23,6 +23,10 @@
 ;;
 
 
+(defparameter *rcode* :RETCODE)
+(defparameter *assign* '<-)
+
+
 (defstruct (location)
   (row		nil)     ;; 1-offset row number
   (column	nil)     ;; 1-offset column number
@@ -126,7 +130,7 @@
              0))))))
 
 
-(defun set-flag (stack name &key clear)
+(defun set-flag-fcn (stack name &key clear)
   (let* ((converted (memory-name name))
          (record (assoc converted (stack-flags stack)
                         :test 'string=)))
@@ -138,10 +142,10 @@
              (push (cons converted (not clear))
                    (stack-flags stack)))))))
 
-(defun clear-flag (stack name)
+(defun clear-flag-fcn (stack name)
   (set-flag stack name :clear t))
 
-(defun get-flag (stack name)
+(defun get-flag-fcn (stack name)
   (let* ((converted (memory-name name))
          (record (assoc converted (stack-flags stack)
                         :test 'string=))
@@ -154,6 +158,9 @@
 
 (defun set-i-register (stack value)
   (setf (stack-register-i stack) value))
+
+(defun get-i-register (stack)
+  (stack-register-i stack))
 
 (defun swap-primary-secondary (stack)
   (dotimes (i 10)
@@ -291,6 +298,7 @@
   (avail-modes		:RUN-MODE)
   (abbrev		nil)
   (run-mode-fcn		nil)
+  (takes-arg		nil)
   (doc-string		nil))
   
 
@@ -343,7 +351,7 @@
                ((listp (first v))
                 (setf rv (append rv (worker (first v)))))
                ((and (symbolp (first v))
-                     (eq (second v) '<-))
+                     (eq (second v) *assign*))
                 (push (first v) rv))))))
 
       (setf rv (worker rules-list))
@@ -357,13 +365,19 @@
 
 (defun convert-to-setf-forms (rules-list 
                               vars-used 
-                              output-varnames)
+                              output-varnames
+                              return-code-symbol
+                              return-code-var)
   (let (rv)
     (do ((pos rules-list (cdr pos)))
         ((not pos) rv)
       (cond
+        ((and (eq (second pos) *assign*)
+              (eq (first pos) return-code-symbol))
+         (append rv `((setf ,return-code-var ,(third pos))))
+         (setf pos (cddr pos)))
         ((and (member (first pos) vars-used)
-              (eq (second pos) '<-)
+              (eq (second pos) *assign*)
               (third pos))
          (setf rv
                (append rv 
@@ -379,17 +393,22 @@
                 (list 
                  (convert-to-setf-forms (first pos)
                                         vars-used
-                                        output-varnames)))))
+                                        output-varnames
+                                        return-code-symbol
+                                        return-code-var)))))
         (t
          (setf rv (append rv (list (first pos)))))))))
 
 
 ;; This is going to change a basic rules list into explicit pops,
 ;; pushes, and exception handling
-(defun expand-rules (rules-list &key update-last-x)
+(defun expand-rules (rules-list &key
+                                  update-last-x
+                                  op-takes-arg)
   (let* ((varnames '(X Y Z W))
          (stack-var (gensym))
          (state-var (gensym))
+         (ret-code-var (gensym))
          (vars-used (get-vars-used rules-list
                                    varnames))
          (vars-assigned (get-vars-assigned rules-list
@@ -398,11 +417,11 @@
     ;; If this is an implicit X <- form, make it explicit so the setf
     ;; substitution will work later
     (when (and (= 1 (length vars-assigned))
-               (not (member '<- (get-symbols-in-list
-                                 rules-list)))
+               (not (member *assign* (get-symbols-in-list
+                                      rules-list)))
                (= 1 (length rules-list)))
       (setf rules-list 
-            (append (list (first varnames) '<-)
+            (append (list (first varnames) *assign*)
                     rules-list)))
 
     ;; We need new symbols to hold the assigned values of the stack
@@ -414,9 +433,12 @@
 
       (setf rules-list 
             (convert-to-setf-forms 
-             rules-list vars-assigned gensyms-output))
+             rules-list vars-assigned gensyms-output
+             *rcode* ret-code-var))
 
-      `(lambda (,stack-var ,state-var)
+      `(lambda ,(if op-takes-arg
+                    `(,stack-var ,state-var ARG)
+                    `(,stack-var ,state-var))
          (declare (ignorable ,stack-var ,state-var))
          (labels
              ((to-radians (angle)
@@ -427,6 +449,35 @@
                 (convert-angle-from-radians 
                  angle 
                  (modes-angles ,state-var)))
+
+              (set-flag (name)
+                (set-flag-fcn ,stack-var name))
+              (clear-flag (name)
+                (clear-flag-fcn ,stack-var name))
+              (get-flag (name)
+                (get-flag-fcn ,stack-var name))
+
+              (push-val (val)
+                (push-stack ,stack-var val))
+
+              (store-mem (name val)
+                (cond
+                  ((string-equal name "(i)")
+                   (store-memory ,stack-var
+                                 (get-i-register ,stack-var)
+                                 val
+                                 :indirection t))
+                  (t
+                   (store-memory ,stack-var name val))))
+              (recall-mem (name)
+                (cond
+                  ((string-equal name "(i)")
+                   (recall-memory ,stack-var
+                                  (get-i-register ,stack-var)
+                                  :indirection t))
+                  (t
+                   (recall-memory ,stack-var name))))
+
               (to-rational (num)
                 (convert-number-to-rational 
                  num 
@@ -442,7 +493,9 @@
                            vars-used)
                  ,@(mapcar #'(lambda (x) 
                                (list x 0))
-                           gensyms-output))
+                           gensyms-output)
+                   (,ret-code-var '(:NORMAL-EXIT)))
+
              (handler-case
                  (progn
                    ,@rules-list
@@ -452,7 +505,9 @@
 
                ((or arithmetic-error simple-error not-real-number) (c)
                  (set-error-state ,stack-var c)
-                (recover-stack ,stack-var)))))))))
+                (setf ,ret-code-var '(:ERROR))
+                (recover-stack ,stack-var)))
+             ,ret-code-var))))))
 
 
 
@@ -463,6 +518,7 @@
                           (mode :RUN-MODE)
                           abbreviation
                           (updates-last-x t)
+                          takes-argument
                           documentation)
                          &body run-mode-forms)
   (register-key-structure
@@ -470,11 +526,13 @@
                     :key-id id
                     :avail-modes mode
                     :abbrev abbreviation
+                    :takes-arg takes-argument
                     :doc-string documentation
                     :run-mode-fcn
                     (eval (expand-rules 
                            `(,@run-mode-forms)
-                           :update-last-x updates-last-x))))
+                           :update-last-x updates-last-x
+                           :op-takes-arg takes-argument))))
   (values))
 
 
@@ -528,3 +586,88 @@
     (dotimes (i X)
       (setf result (* result (1+ i))))
     X <- result))
+
+(define-op-key
+    (:location (make-location
+                :row 5
+                :col 1
+                :shift :H-BLACK
+                :category-1 :FLAGS)
+               :takes-argument t
+               :abbreviation "SF"
+               :documentation "Sets a flag")
+  (set-flag ARG)
+  X <- X)
+
+(define-op-key
+    (:location (make-location
+                :row 6
+                :col 1
+                :shift :H-BLACK
+                :category-1 :FLAGS)
+               :takes-argument t
+               :abbreviation "CF"
+               :documentation "Clears a flag")
+  (clear-flag ARG)
+  X <- X)
+
+(define-op-key
+    (:location (make-location
+                :row 7
+                :col 1
+                :shift :H-BLACK
+                :category-1 :FLAGS)
+               :takes-argument t
+               :abbreviation "F?"
+               :documentation "Tests a flag")
+  (when (not (get-flag ARG))
+    :RETCODE <- '(:SKIP-NEXT-STEP))
+  X <- X)
+
+(define-op-key
+    (:location (make-location
+                :row 3
+                :col 3
+                :category-1 :MEMORY
+                :cateogry-2 :MEMORY-STORE)
+               :takes-argument t
+               :abbreviation "STO"
+               :documentation "Saves a memory register")
+  (store-mem ARG X)
+  X <- X)
+
+(define-op-key
+    (:location (make-location
+                :row 3
+                :col 4
+                :category-1 :MEMORY
+                :cateogry-2 :MEMORY-RECALL)
+               :takes-argument t
+               :abbreviation "RCL"
+               :documentation "Saves a memory register")
+  (recall-mem ARG))
+
+
+(define-op-key
+    (:location (make-location
+                :row 3
+                :col 3
+                :shift :H-BLACK
+                :category-1 :MEMORY
+                :cateogry-2 :MEMORY-STORE)
+               :abbreviation "STI"
+               :documentation "Saves by indirection")
+  (store-mem "(i)" X)
+  X <- X)
+
+(define-op-key
+    (:location (make-location
+                :row 3
+                :col 4
+                :shift :H-BLACK
+                :category-1 :MEMORY
+                :cateogry-2 :MEMORY-RECALL)
+               :abbreviation "RCI"
+               :documentation "Recalls by indirection")
+  (recall-mem "(i)"))
+
