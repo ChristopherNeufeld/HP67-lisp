@@ -143,7 +143,7 @@
                    (stack-flags stack)))))))
 
 (defun clear-flag-fcn (stack name)
-  (set-flag stack name :clear t))
+  (set-flag-fcn stack name :clear t))
 
 (defun get-flag-fcn (stack name)
   (let* ((converted (memory-name name))
@@ -152,7 +152,7 @@
          (rval (cdr record)))
     (when (or (string= converted "2")
               (string= converted "3"))
-      (clear-flag stack name))
+      (clear-flag-fcn stack name))
     rval))
 
 
@@ -255,6 +255,32 @@
   val)
 
 
+(defun rolldown-stack (stack)
+  (unless (stack-error-state stack)
+    (let ((x-val (pop-stack stack)))
+      (setf (stack-registers stack)
+            (append (stack-registers stack) (list x-val))))
+    (first (stack-registers stack))))
+
+
+(defun rollup-stack (stack)
+  (unless (stack-error-state stack)
+    (cond
+      ((= (stack-num-registers stack) 0)
+       (let* ((slen (length (stack-num-registers stack)))
+              (last-val (nth (1- slen) (stack-num-registers stack))))
+         (trim-list-to-length (stack-registers stack) (1- slen))
+         (push-stack stack last-val)))
+      (t
+       (let ((last-val (or (nth (1- (stack-num-registers stack))
+                                (stack-registers stack))
+                           0)))
+         (push-stack stack last-val)
+         (trim-list-to-length (stack-registers stack)
+                              (stack-num-registers stack)))))
+    (first (stack-registers stack))))
+
+
 (defun update-last-x (stack)
   (let ((contents (stack-registers stack)))
     (setf (stack-last-x stack)
@@ -295,8 +321,9 @@
 (defstruct (key-struct)
   (key-location		nil)
   (key-id		nil)
-  (avail-modes		:RUN-MODE)
+  (avail-modes		'(:RUN-MODE))
   (abbrev		nil)
+  (run-mode-form	nil)
   (run-mode-fcn		nil)
   (takes-arg		nil)
   (doc-string		nil))
@@ -341,7 +368,7 @@
           (return-from get-vars-used 
             (subseq varnames 0 (- vlen i))))))))
 
-(defun get-vars-assigned (rules-list varnames)
+(defun get-vars-assigned (rules-list varnames &key no-implicit-x)
   (let ((rv '()))
     (labels
         ((worker (rl)
@@ -358,7 +385,8 @@
 
       (remove-if #'(lambda (x)
                      (not (member x varnames))) rv)
-      (if (not rv)
+
+      (if (and no-implicit-x (not rv))
           (list (first varnames))
           (delete-duplicates rv)))))
 
@@ -403,6 +431,7 @@
 ;; This is going to change a basic rules list into explicit pops,
 ;; pushes, and exception handling
 (defun expand-rules (rules-list &key
+                                  no-implicit-x
                                   update-last-x
                                   op-takes-arg)
   (let* ((varnames '(X Y Z W))
@@ -415,8 +444,9 @@
                                            varnames)))
 
     ;; If this is an implicit X <- form, make it explicit so the setf
-    ;; substitution will work later
-    (when (and (= 1 (length vars-assigned))
+    ;; substitution will work later.  Overridden by a keyword.
+    (when (and (not no-implicit-x)
+               (= 1 (length vars-assigned))
                (not (member *assign* (get-symbols-in-list
                                       rules-list)))
                (= 1 (length rules-list)))
@@ -459,6 +489,10 @@
 
               (push-val (val)
                 (push-stack ,stack-var val))
+              (roll-stack-down ()
+                  (rolldown-stack ,stack-var))
+              (roll-stack-up ()
+                  (rollup-stack ,stack-var))
 
               (store-mem (name val)
                 (cond
@@ -515,24 +549,28 @@
 (defmacro define-op-key ((&key
                           location
                           (id (make-new-id))
-                          (mode :RUN-MODE)
+                          (modelist '(:RUN-MODE))
                           abbreviation
                           (updates-last-x t)
                           takes-argument
+                          (implicit-x t)
                           documentation)
                          &body run-mode-forms)
-  (register-key-structure
-   (make-key-struct :key-location location
-                    :key-id id
-                    :avail-modes mode
-                    :abbrev abbreviation
-                    :takes-arg takes-argument
-                    :doc-string documentation
-                    :run-mode-fcn
-                    (eval (expand-rules 
-                           `(,@run-mode-forms)
-                           :update-last-x updates-last-x
-                           :op-takes-arg takes-argument))))
+  (let ((run-forms
+         (expand-rules
+          `(,@run-mode-forms)
+          :update-last-x updates-last-x
+          :no-implicit-x (not implicit-x)
+          :op-takes-arg takes-argument)))
+    (register-key-structure
+     (make-key-struct :key-location location
+                      :key-id id
+                      :avail-modes modelist
+                      :abbrev abbreviation
+                      :takes-arg takes-argument
+                      :doc-string documentation
+                      :run-mode-form run-forms
+                      :run-mode-fcn (eval run-forms))))
   (values))
 
 
@@ -670,4 +708,81 @@
                :abbreviation "RCI"
                :documentation "Recalls by indirection")
   (recall-mem "(i)"))
+
+
+
+
+(defmacro define-toprow-key ((col letter abbreviation doc
+                                  &key implicit-x (updates-last-x t))
+                             &body arith-forms)
+  `(progn
+     (define-op-key
+         (:location (make-location
+                     :row 1
+                     :col ,col
+                     :category-1 :ARITHMETIC)
+                    :modelist '(:RUN-NO-PROG)
+                    :abbreviation ,abbreviation
+                    :updates-last-x ,updates-last-x
+                    :implicit-x ,implicit-x
+                    :documentation ,(format nil
+                                            "~S (when no program exists)"
+                                            doc))
+         ,@arith-forms)
+     
+     (define-op-key
+         (:location (make-location
+                     :row 1
+                     :col ,col
+                     :category-1 :FLOW-CONTROL)
+                    :modelist '(:RUN-WITH-PROG)
+                    :abbreviation ,(format nil
+                                           "GSB-~C"
+                                           letter)
+                    :implicit-x ,implicit-x
+                    :updates-last-x nil
+                    :documentation ,(format nil
+                                            "Call program label ~C"
+                                            letter))
+         :RETCODE <- '(:GOSUB ,(format nil "~C" letter))
+         X <- X)
+                    
+     (define-op-key
+         (:location (make-location
+                     :row 1
+                     :col ,col
+                     :category-1 :FLOW-CONTROL)
+                    :modelist '(:RUN-WITH-PROG)
+                    :abbreviation ,(format nil
+                                           "GSB-~C"
+                                           (char-downcase letter))
+                    :implicit-x ,implicit-x
+                    :updates-last-x nil
+                    :documentation ,(format nil
+                                            "Call program label ~C"
+                                            (char-downcase letter)))
+         :RETCODE <- '(:GOSUB ,(format nil "~C"
+                                       (char-downcase letter)))
+         X <- X)))
+                    
+
+
+(define-toprow-key (1 #\A "1/x" "Reciprocal")
+    X <- (/ 1.0d0 X))
+
+(define-toprow-key (2 #\B "sqrt" "Square root")
+    X <- (sqrt (to-double-fp X)))
+
+(define-toprow-key (3 #\C "y^x" "Power")
+    X <- (expt Y X))
+
+(define-toprow-key (4 #\D "rolld" "Roll stack down"
+                      :implicit-x nil
+                      :updates-last-x nil)
+  (roll-stack-down))
+
+(define-toprow-key (5 #\E "x<>y" "Exchange X and Y"
+                      :updates-last-x nil)
+  X <- Y
+  Y <- X)
 
