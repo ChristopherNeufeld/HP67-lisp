@@ -238,7 +238,9 @@
                                  `(push-stack ,stack-var ,x)) 
                              gensyms-output))
 
-               ((or arithmetic-error simple-error not-real-number) (c)
+               ((or
+                 arithmetic-error simple-error
+                 not-real-number i-register-range-error) (c)
                  (set-error-state ,stack-var c)
                 (setf ,ret-code-var '(:ERROR))
                 (recover-stack ,stack-var)))
