@@ -212,6 +212,15 @@
               (recall-mem (name)
                 `(recall-memory ,',stack-var ,name))
 
+              (get-i-int-val ()
+                `(second (multiple-value-list
+                          (get-i-register ,',stack-var))))
+
+              (set-display-width (width)
+                `(set-display-digits ,',state-var ,width))
+              (set-display-mode (how)
+                `(set-display-output-mode ,',state-var ,how))
+
               (to-rational (num)
                 `(convert-number-to-rational 
                   ,num 
