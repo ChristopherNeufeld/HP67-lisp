@@ -208,22 +208,9 @@
                 `(rolldown-stack ,',stack-var))
 
               (store-mem (name val)
-                `(cond
-                   ((string-equal ,name "(i)")
-                    (store-memory ,',stack-var
-                                  (get-i-register ,',stack-var)
-                                  ,val
-                                  :indirection t))
-                   (t
-                    (store-memory ,',stack-var ,name ,val))))
+                `(store-memory ,',stack-var ,name ,val))
               (recall-mem (name)
-                `(cond
-                   ((string-equal ,name "(i)")
-                    (recall-memory ,',stack-var
-                                   (get-i-register ,',stack-var)
-                                   :indirection t))
-                   (t
-                    (recall-memory ,',stack-var ,name))))
+                `(recall-memory ,',stack-var ,name))
 
               (to-rational (num)
                 `(convert-number-to-rational 
@@ -242,6 +229,7 @@
                                (list x 0))
                            gensyms-output)
                    (,ret-code-var '(:NORMAL-EXIT)))
+             (declare (ignorable ,@vars-used))
 
              (handler-case
                  (progn
