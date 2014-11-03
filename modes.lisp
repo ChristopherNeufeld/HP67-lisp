@@ -5,7 +5,8 @@
   (run/prog		:RUN-MODE)
   (complex		nil)
   (rational		nil)
-  
+
+  (digits		2)
   (display-mode		:FIXED))
 
 
@@ -28,4 +29,16 @@
       (rational num)
       num))
 
+(defun set-display-digits (mode num)
+  (assert (<= 0 num 9))
+  (setf (modes-digits mode) num))
 
+(defun get-display-digits (mode)
+  (modes-digits mode))
+
+(defun set-display-output-mode (mode-struct how)
+  (assert (member how '(:FIXED :SCIENTIFIC :ENGINEERING)))
+  (setf (modes-display-mode mode-struct) how))
+
+(defun get-display-output-mode (mode-struct)
+  (modes-display-mode mode-struct))
