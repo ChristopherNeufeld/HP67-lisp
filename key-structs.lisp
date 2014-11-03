@@ -207,6 +207,12 @@
               (roll-stack-down ()
                 `(rolldown-stack ,',stack-var))
 
+              (round-to-display-precision (num)
+                `(to-double-fp
+                  (read-from-string
+                   (format-for-printing ,',state-var ,num
+                                        :readable t))))
+
               (store-mem (name val)
                 `(store-memory ,',stack-var ,name ,val))
               (recall-mem (name)
