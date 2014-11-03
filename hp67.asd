@@ -10,6 +10,7 @@
   :licence "GPL v3"
   :components ((:file "stack")
                (:file "modes")
+               (:file "display" :depends-on ("modes"))
                (:file "key-structs"
                       :depends-on ("stack" "modes"))
                (:file "calc1"
