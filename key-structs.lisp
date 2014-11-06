@@ -208,10 +208,8 @@
                 `(rolldown-stack ,',stack-var))
 
               (round-to-display-precision (num)
-                `(to-double-fp
-                  (read-from-string
-                   (format-for-printing ,',state-var ,num
-                                        :readable t))))
+                `(convert-string-rep-to-rational
+                  (format-for-printing ,',state-var ,num)))
 
               (store-mem (name val)
                 `(store-memory ,',stack-var ,name ,val))
