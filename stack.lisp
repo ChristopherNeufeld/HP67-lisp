@@ -14,6 +14,23 @@
              (format s "The complex value ~A was encountered."
                      (get-val c)))))
 
+
+(define-condition invalid-float-arrived (error)
+  ((val		:initarg value
+                :reader get-val))
+  (:documentation "A floating-point number was pushed when rationals were promised.  This is a coding bug and should be fixed.")
+  (:report (lambda (c s)
+             (format s "The float value ~A was encountered."
+                     (get-val c)))))
+
+(define-condition single-precision-float (error)
+  ((val		:initarg value
+                :reader get-val))
+  (:documentation "A single-precision floating-point number was seen.  This is below the promised precision of the calculator, and is a programming bug.")
+  (:report (lambda (c s)
+             (format s "The single-precision float value ~A was encountered."
+                     (get-val c)))))
+
 (define-condition i-register-range-error (error)
   ((val		:initarg value
                 :reader get-val)
@@ -25,6 +42,28 @@
   (:report (lambda (c s)
              (format s "The I-register was ~D.  In this context, it must lie between ~D and ~D"
                      (get-val c) (get-min c) (get-max c)))))
+
+
+(defmacro fix-input-val (val rflag)
+  (let ((vcopy (gensym)))
+    `(let ((,vcopy ,val))
+       (when (eq ,rflag :DOUBLE-FLOAT)
+         (when (eq (type-of ,vcopy) 'single-float)
+           (error (make-condition 'single-precision-float
+                                  :value ,vcopy)))
+         (setf ,vcopy (rational ,vcopy)))
+
+       (unless (rationalp ,vcopy)
+         (error (make-condition 'invalid-float-arrived
+                                :value ,vcopy)))
+
+       (round-to-ultimate-precision ,vcopy))))
+
+
+(defmacro fix-output-val (val rflag)
+  `(if (eq ,rflag :DOUBLE-FLOAT)
+       (coerce ,val 'double-float)
+       ,val))
 
 
 (defstruct (stack)
@@ -39,7 +78,6 @@
                           ("2" . nil)
                           ("3" . nil)))
 
-  (use-rationals-p	nil)
   (complex-allowed-p	nil)
   (error-state		nil))
 
@@ -94,14 +132,17 @@
         0)))
 
 
-(defun store-memory (stack name val)
+(defun store-memory (stack name val rflag)
   (setf name (canonicalize-memory-name stack name))
-  (store-memory-by-name stack name val))
+  (setf val (fix-input-val val rflag))
+  (store-memory-by-name stack name val)
+  val)
 
 
-(defun recall-memory (stack name)
+(defun recall-memory (stack name rflag)
   (setf name (canonicalize-memory-name stack name))
-  (recall-memory-by-name stack name))
+  (fix-output-val (recall-memory-by-name stack name)
+                  rflag))
 
 
 
@@ -177,10 +218,10 @@
 
 (defun swap-primary-secondary (stack)
   (dotimes (i 10)
-    (let ((val-prim (recall-memory stack i))
-          (val-second (recall-memory stack (+ i 10))))
-      (store-memory stack i val-second)
-      (store-memory stack (+ i 10) val-prim))))
+    (let ((val-prim (recall-memory stack i :RATIONAL))
+          (val-second (recall-memory stack (+ i 10) :RATIONAL)))
+      (store-memory stack i val-second :RATIONAL)
+      (store-memory stack (+ i 10) val-prim :RATIONAL))))
   
 
 
@@ -227,7 +268,7 @@
   (setf (stack-num-registers stack) num))
 
 
-(defun pop-stack (stack)
+(defun pop-stack (stack rflag)
   "Returns the first element from the stack."
   (unless (stack-error-state stack)
     (let (rv)
@@ -241,21 +282,18 @@
            (when (/= (stack-num-registers stack) 0)
              (setf (stack-registers stack)
                    (append previous-contents (last previous-contents)))))))
-      (if (stack-use-rationals-p stack)
-          (rational rv)
-          rv))))
+      (fix-output-val rv rflag))))
 
 
-(defun push-stack (stack val)
+(defun push-stack (stack val rflag)
   "Pushes an element on the stack."
-  (assert (numberp val))
+  (setf val (fix-input-val val rflag))
+
   (unless (stack-error-state stack)
     (when (and (complexp val)
                (not (stack-complex-allowed-p stack)))
       (error (make-condition 'not-real-number
                              :value val)))
-    (when (stack-use-rationals-p stack)
-      (setf val (rational val)))
 
     (push val (stack-registers stack))
     (when (/= 0 (stack-num-registers stack))
@@ -266,7 +304,7 @@
 
 (defun rolldown-stack (stack)
   (unless (stack-error-state stack)
-    (let ((x-val (pop-stack stack)))
+    (let ((x-val (pop-stack stack :RATIONAL)))
       (setf (stack-registers stack)
             (append (stack-registers stack) (list x-val))))
     (first (stack-registers stack))))
@@ -279,12 +317,12 @@
        (let* ((slen (length (stack-num-registers stack)))
               (last-val (nth (1- slen) (stack-num-registers stack))))
          (trim-list-to-length (stack-registers stack) (1- slen))
-         (push-stack stack last-val)))
+         (push-stack stack last-val :RATIONAL)))
       (t
        (let ((last-val (or (nth (1- (stack-num-registers stack))
                                 (stack-registers stack))
                            0)))
-         (push-stack stack last-val)
+         (push-stack stack last-val :RATIONAL)
          (trim-list-to-length (stack-registers stack)
                               (stack-num-registers stack)))))
     (first (stack-registers stack))))
