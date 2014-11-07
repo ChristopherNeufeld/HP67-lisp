@@ -45,6 +45,9 @@
 (let ((keys '())
       (next-id 0))
 
+  (defun erase-keys ()
+    (setf keys '()))
+
   (defun make-new-id ()
     (prog1
         next-id
@@ -60,6 +63,11 @@
     keys))
 
            
+
+(defun show-forms-on-key (abbreviation)
+  (dolist (k (get-keys))
+    (when (string= abbreviation (key-struct-abbrev k))
+      (format t "~S~%" (key-struct-run-mode-form k)))))
 
 
 (defun get-symbols-in-list (rlist)
@@ -96,8 +104,8 @@
 
       (setf rv (worker rules-list))
 
-      (remove-if #'(lambda (x)
-                     (not (member x varnames))) rv)
+      (setf rv (remove-if #'(lambda (x)
+                              (not (member x varnames))) rv))
 
       (if (and no-implicit-x (not rv))
           (list (first varnames))
@@ -115,7 +123,7 @@
       (cond
         ((and (eq (second pos) *assign*)
               (eq (first pos) return-code-symbol))
-         (append rv `((setf ,return-code-var ,(third pos))))
+         (setf rv (append rv `((setf ,return-code-var ,(third pos)))))
          (setf pos (cddr pos)))
         ((and (member (first pos) vars-used)
               (eq (second pos) *assign*)
@@ -146,11 +154,14 @@
 (defun expand-rules (rules-list &key
                                   no-implicit-x
                                   update-last-x
+                                  rational-safe
                                   op-takes-arg)
   (let* ((varnames '(X Y Z W))
+         (rflag (if rational-safe :RATIONAL :DOUBLE-FLOAT))
          (stack-var (gensym))
          (state-var (gensym))
          (ret-code-var (gensym))
+         with-implicit
          (vars-used (get-vars-used rules-list
                                    varnames))
          (vars-assigned (get-vars-assigned rules-list
@@ -159,13 +170,16 @@
     ;; If this is an implicit X <- form, make it explicit so the setf
     ;; substitution will work later.  Overridden by a keyword.
     (when (and (not no-implicit-x)
-               (= 1 (length vars-assigned))
                (not (member *assign* (get-symbols-in-list
                                       rules-list)))
                (= 1 (length rules-list)))
+      (setf with-implicit t)
       (setf rules-list 
             (append (list (first varnames) *assign*)
-                    rules-list)))
+                    rules-list))
+
+      (setf vars-assigned (get-vars-assigned rules-list varnames)))
+      
 
     ;; We need new symbols to hold the assigned values of the stack
     ;; variables, to avoid side-effects on multiple assignments.
@@ -176,7 +190,9 @@
 
       (setf rules-list 
             (convert-to-setf-forms 
-             rules-list vars-assigned gensyms-output
+             rules-list
+             vars-assigned
+             gensyms-output
              *rcode* ret-code-var))
 
       `(lambda ,(if op-takes-arg
@@ -201,7 +217,7 @@
                 `(get-flag-fcn ,',stack-var ,name))
 
               (push-val (val)
-                `(push-stack ,',stack-var ,val))
+                `(push-stack ,',stack-var ,val ,,rflag))
               (roll-stack-up ()
                 `(rollup-stack ,',stack-var))
               (roll-stack-down ()
@@ -212,9 +228,9 @@
                   (format-for-printing ,',state-var ,num)))
 
               (store-mem (name val)
-                `(store-memory ,',stack-var ,name ,val))
+                `(store-memory ,',stack-var ,name ,val ,,rflag))
               (recall-mem (name)
-                `(recall-memory ,',stack-var ,name))
+                `(recall-memory ,',stack-var ,name ,,rflag))
 
               (get-i-int-val ()
                 `(second (multiple-value-list
@@ -236,7 +252,7 @@
                   `(update-last-x ,stack-var))
            (backup-stack ,stack-var)
            (let (,@(mapcar #'(lambda (x) 
-                               `(,x (pop-stack ,stack-var))) 
+                               `(,x (pop-stack ,stack-var ,rflag))) 
                            vars-used)
                  ,@(mapcar #'(lambda (x) 
                                (list x 0))
@@ -248,7 +264,7 @@
                  (progn
                    ,@rules-list
                    ,@(mapcar #'(lambda (x)
-                                 `(push-stack ,stack-var ,x)) 
+                                 `(push-stack ,stack-var ,x ,rflag)) 
                              gensyms-output))
 
                ((or
@@ -268,6 +284,7 @@
                           (modelist '(:RUN-MODE))
                           abbreviation
                           (updates-last-x t)
+                          rational-safe
                           takes-argument
                           (implicit-x t)
                           documentation)
@@ -277,6 +294,7 @@
           `(,@run-mode-forms)
           :update-last-x updates-last-x
           :no-implicit-x (not implicit-x)
+          :rational-safe rational-safe
           :op-takes-arg takes-argument)))
     `(register-key-structure
       (make-key-struct :key-location ,location
@@ -285,12 +303,15 @@
                        :abbrev ,abbreviation
                        :takes-arg ,takes-argument
                        :doc-string ,documentation
-                       :run-mode-form ,run-forms
-                       :run-mode-fcn (eval ,run-forms)))))
+                       :run-mode-form ',run-forms
+                       :run-mode-fcn ,run-forms))))
 
 
 (defmacro define-toprow-key ((col letter abbreviation doc
-                                  &key implicit-x (updates-last-x t))
+                                  &key
+                                  implicit-x
+                                  (updates-last-x t)
+                                  rational-safe)
                              &body arith-forms)
   `(progn
      (define-op-key
@@ -301,6 +322,7 @@
                     :modelist '(:RUN-NO-PROG)
                     :abbreviation ,abbreviation
                     :updates-last-x ,updates-last-x
+                    :rational-safe ,rational-safe
                     :implicit-x ,implicit-x
                     :documentation ,(format nil
                                             "~S (when no program exists)"
