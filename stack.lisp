@@ -44,26 +44,24 @@
                      (get-val c) (get-min c) (get-max c)))))
 
 
-(defmacro fix-input-val (val rflag)
-  (let ((vcopy (gensym)))
-    `(let ((,vcopy ,val))
-       (when (eq ,rflag :DOUBLE-FLOAT)
-         (when (eq (type-of ,vcopy) 'single-float)
-           (error (make-condition 'single-precision-float
-                                  :value ,vcopy)))
-         (setf ,vcopy (rational ,vcopy)))
+(defun fix-input-val (val rflag)
+  (when (eq rflag :DOUBLE-FLOAT)
+    (when (eq (type-of val) 'single-float)
+      (error (make-condition 'single-precision-float
+                             :value val)))
+         (setf val (rational val)))
 
-       (unless (rationalp ,vcopy)
-         (error (make-condition 'invalid-float-arrived
-                                :value ,vcopy)))
+  (unless (rationalp val)
+    (error (make-condition 'invalid-float-arrived
+                           :value val)))
 
-       (round-to-ultimate-precision ,vcopy))))
+  (round-to-ultimate-precision val))
 
 
-(defmacro fix-output-val (val rflag)
-  `(if (eq ,rflag :DOUBLE-FLOAT)
-       (coerce ,val 'double-float)
-       ,val))
+(defun fix-output-val (val rflag)
+  (if (eq rflag :DOUBLE-FLOAT)
+      (coerce val 'double-float)
+      val))
 
 
 (defstruct (stack)
