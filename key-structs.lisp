@@ -27,14 +27,60 @@
   (col		nil)     ;; 1-offset column number
   (shift	:UNSHIFTED)
   (width	1)
+  (narrow-key   nil)     ;; some keys are square, not rectangular
+  (compound-key nil)
   (category-1	nil)
   (category-2	nil))
+
+
+;; Here are the category-1 types, and their category-2 types, if defined:
+;;
+;; :NUMERIC
+;; :ARITHMETIC
+;; :STATISTICS
+;; :ALGEBRAIC
+;; :TRIGONOMETRY	(nil :INVERSE-TRIG)
+;; :TRANSCENDENTAL
+;; :STACK-MANIPULATION
+;; :MODE-SWITCH
+;; :INDIRECTION
+;; :EXTERNAL-I-O
+;; :MEMORY		(nil :MEMORY-RECALL :MEMORY-STORE)
+;; :FLAGS
+;; :FLOW-CONTROL	(nil :MEMORY-STORE)
+;; :PROGRAM-MEMORY
+
+
+;; Keys can return one of the following:
+;;
+;; :NORMAL-EXIT    no unusual behaviour.  If in numeric input mode,
+;;                 switches back to run mode
+;; :GOTO "label"   move program counter to the next forward occurence
+;; 		   of label, or back nnn steps if "label" is a
+;; 		   negative number
+;; :GOSUB "label"  execute the program starting at label, until RTN is
+;;                 encountered
+;; :RETURN-FROM-SUBROUTINE   pop the stack and return from gosub
+;; :TOKEN "<token>"...  start numeric input mode if not already there
+;; :SINGLE-STEP    execute the next program step
+;; :LABEL "label"  record a label, a target for GOTO or GOSUB
+;; :BACK-STEP      back up the program counter by one step
+;; :SKIP-NEXT-STEP   jump over the next program step
+;; :CARD-OPERATION   use the calculator's card reader/writer
+;; :DELETE-CURRENT-STEP  delete a program step
+;; :PAUSE-1-SECOND   display the X register for 1 second, then continue
+;; :REVIEW-REGISTERS display the primary registers, then continue
+;; :RUN-STOP       start or stop the program execution
+;; :PAUSE-5-SECONDS  display the X register for 5 seconds, then continue
+;; :DISPLAY-STACK    display the stack, then continue
+;; :NO-OP          insert a null instruction in the program space
 
 
 (defstruct (key-struct)
   (key-location		nil)
   (key-id		nil)
-  (avail-modes		'(:RUN-MODE))
+  (avail-modes		'(:RUN-MODE :RUN-MODE-NO-PROG
+                          :PROGRAM-EXECUTION :PROGRAMMING-MODE))
   (abbrev		nil)
   (run-mode-form	nil)
   (run-mode-fcn		nil)
@@ -57,6 +103,17 @@
     (let ((this-id (key-struct-key-id ks)))
       (when (>= this-id next-id)
         (setf next-id (1+ this-id))))
+
+    (when (member-if
+           #'(lambda (x)
+               (and (string= (key-struct-abbrev x)
+                             (key-struct-abbrev ks))
+                    (intersection (key-struct-avail-modes x)
+                                  (key-struct-avail-modes ks))))
+           keys)
+      (error "Key collision: redundant definition for ~A~%"
+             (key-struct-abbrev ks)))
+    
     (push ks keys))
 
   (defun get-keys ()
@@ -222,6 +279,8 @@
                 `(rollup-stack ,',stack-var))
               (roll-stack-down ()
                 `(rolldown-stack ,',stack-var))
+              (get-last-x ()
+                `(retrieve-last-x-value ,',stack-var))
 
               (round-to-display-precision (num)
                 `(convert-string-rep-to-rational
@@ -231,22 +290,30 @@
                 `(store-memory ,',stack-var ,name ,val ,,rflag))
               (recall-mem (name)
                 `(recall-memory ,',stack-var ,name ,,rflag))
+              (swap-registers ()
+                `(swap-primary-secondary ,',stack-var))
+              (clear-registers ()
+                `(clear-primary-memory-registers ,',stack-var))
+
+              (clear-program ()
+                `(clear-program-memory ,',stack-var ,',state-var))
+
+              (store-i-val (val)
+                `(set-i-register ,',stack-var ,val))
+              (recall-i-val ()
+                `(get-i-register ,',stack-var))
 
               (get-i-int-val ()
                 `(second (multiple-value-list
                           (get-i-register ,',stack-var))))
 
+              (set-angle-mode (how)
+                `(set-angle-units-mode ,',state-var ,how))
+
               (set-display-width (width)
                 `(set-display-digits ,',state-var ,width))
               (set-display-mode (how)
-                `(set-display-output-mode ,',state-var ,how))
-
-              (to-rational (num)
-                `(convert-number-to-rational 
-                  ,num 
-                  (modes-rational ,',state-var)))
-              (to-double-fp (num)
-                `(coerce ,num 'double-float)))
+                `(set-display-output-mode ,',state-var ,how)))
 
            ,(when update-last-x
                   `(update-last-x ,stack-var))
@@ -309,6 +376,7 @@
 
 (defmacro define-toprow-key ((col letter abbreviation doc
                                   &key
+                                  category-1
                                   implicit-x
                                   (updates-last-x t)
                                   rational-safe)
@@ -318,8 +386,8 @@
          (:location (make-location
                      :row 1
                      :col ,col
-                     :category-1 :ARITHMETIC)
-                    :modelist '(:RUN-NO-PROG)
+                     :category-1 ,category-1)
+                    :modelist '(:RUN-MODE-NO-PROG)
                     :abbreviation ,abbreviation
                     :updates-last-x ,updates-last-x
                     :rational-safe ,rational-safe
@@ -334,7 +402,8 @@
                      :row 1
                      :col ,col
                      :category-1 :FLOW-CONTROL)
-                    :modelist '(:RUN-WITH-PROG)
+                    :modelist '(:RUN-MODE :PROGRAM-EXECUTION
+                                :PROGRAMMING-MODE)
                     :abbreviation ,(format nil
                                            "GSB-~C"
                                            letter)
@@ -351,7 +420,8 @@
                      :row 1
                      :col ,col
                      :category-1 :FLOW-CONTROL)
-                    :modelist '(:RUN-WITH-PROG)
+                    :modelist '(:RUN-MODE :PROGRAM-EXECUTION
+                                :PROGRAMMING-MODE)
                     :abbreviation ,(format nil
                                            "GSB-~C"
                                            (char-downcase letter))
