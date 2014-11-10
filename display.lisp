@@ -1,6 +1,8 @@
 ;; Code for rendering numbers for display
 
 (defparameter *digits-in-display* 10)
+(defparameter *overflow-exponent* 99)  ;; larger than this, and
+                                       ;; there's an error
 
 ;; This isn't actually that simple a problem.  Note, for instance,
 ;; that the format directive is permitted to round up or round down
@@ -32,8 +34,10 @@
 (defun round-to-ultimate-precision (rval)
   "Takes a rational and returns a new one, in the exact precision of the calculator (10 digits)"
   (assert (rational rval))
-  (convert-string-rep-to-rational
-   (render-rational-as-sci rval (1- *digits-in-display*))))
+  (multiple-value-bind (rep in-bounds)
+      (render-rational-as-sci rval (1- *digits-in-display*))
+    (values (convert-string-rep-to-rational rep)
+            in-bounds)))
 
 
 (defun position-of-exponent-marker (string)
@@ -194,7 +198,8 @@
             (if (< exponent 0) "-" "")
             (abs exponent))
 
-    (get-output-stream-string rv)))
+    (values (get-output-stream-string rv)
+            (<= exponent *overflow-exponent*))))
 
 
 ;; The 'truncating' keyword, if non-nil, bounds the total number of
