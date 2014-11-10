@@ -5,6 +5,11 @@
   "If non-nil, the I-register is allowed to modify memory/flags outside the normally-permitted range")
 
 
+(defconstant +initial-flag-settings+
+  (if (boundp '+initial-flag-settings+)
+      (symbol-value '+initial-flag-settings+)
+      '(("0" . nil) ("1" . nil) ("2" . nil) ("3" . nil))))
+
 
 (define-condition not-real-number (error)
   ((val		:initarg value
@@ -13,6 +18,13 @@
   (:report (lambda (c s)
              (format s "The complex value ~A was encountered."
                      (get-val c)))))
+
+(define-condition overflow (error)
+  ()
+  (:documentation "Calculator register overflowed.")
+  (:report (lambda (c s)
+             (declare (ignore c))
+             (format s "A number too large for the calculator was encountered"))))
 
 
 (define-condition invalid-float-arrived (error)
@@ -55,7 +67,11 @@
     (error (make-condition 'invalid-float-arrived
                            :value val)))
 
-  (round-to-ultimate-precision val))
+  (multiple-value-bind (number in-bounds)
+      (round-to-ultimate-precision val)
+    (unless in-bounds
+      (error (make-condition 'overflow)))
+    number))
 
 
 (defun fix-output-val (val rflag)
@@ -68,17 +84,28 @@
   (registers		(list 0 0 0 0))
   (registers-copy	nil)
   (num-registers	4)
-  (last-x		nil)
+  (last-x		0)
 
   (memory		nil)
-  (flags		'(("0" . nil)
-                          ("1" . nil)
-                          ("2" . nil)
-                          ("3" . nil)))
+  (flags		(copy-alist +initial-flag-settings+))
+
+  (program-memory	nil)
 
   (complex-allowed-p	nil)
   (error-state		nil))
 
+
+(defun clear-primary-memory-registers (stack)
+  (let ((primary-names '("0" "1" "2" "3" "4" "5" "6" "7" "8" "9"
+                         "A" "B" "C" "D" "E" "(i)")))
+    (mapcar #'(lambda (x)
+                (store-memory-by-name stack x 0)) primary-names)))
+
+(defun clear-program-memory (stack mode)
+  (setf (stack-program-memory stack) nil)
+  (set-angle-units-mode mode :DEGREES)
+  (set-display-digits mode 2)
+  (clear-all-flags stack))
 
 
 (defun canonicalize-memory-name (stack mem-name)
@@ -197,6 +224,10 @@
 (defun get-flag-fcn (stack name)
   (setf name (canonicalize-flag-name stack name))
   (get-flag-by-name stack name))
+
+(defun clear-all-flags (stack)
+  (setf (stack-flags stack) (copy-alist +initial-flag-settings+)))
+
 
 
 
@@ -334,3 +365,5 @@
               0))))
 
 
+(defun retrieve-last-x-value (stack)
+  (stack-last-x stack))
