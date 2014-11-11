@@ -2,9 +2,8 @@
 
 (defstruct (modes)
   (angles		:RADIANS)
-  (run/prog		:RUN-MODE)
+  (run/prog		:RUN-MODE-NO-PROG)
   (complex		nil)
-  (rational		nil)
 
   (digits		2)
   (display-mode		:FIXED))
