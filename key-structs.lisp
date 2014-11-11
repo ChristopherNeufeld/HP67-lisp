@@ -348,7 +348,9 @@
 (defmacro define-op-key ((&key
                           location
                           (id (make-new-id))
-                          (modelist '(:RUN-MODE))
+                          (modelist '(:RUN-MODE :RUN-MODE-NO-PROG
+                                      :PROGRAM-EXECUTION
+                                      :PROGRAMMING-MODE))
                           abbreviation
                           (updates-last-x t)
                           rational-safe
