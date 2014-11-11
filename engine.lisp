@@ -7,6 +7,36 @@
 (defun get-new-mode-object ()
   (make-modes))
 
+
+(defun tokenize (text-string)
+  (labels
+      ((find-non-space (seq pos)
+         (when pos
+           (position-if #'(lambda (x)
+                            (char/= x #\ ))
+                        seq :start pos)))
+
+       (find-space (seq pos)
+         (when pos
+           (position-if #'(lambda (x)
+                            (char= x #\ ))
+                        seq :start pos))))
+
+    (let ((begin-token 0)
+          (end-token 0)
+          rv)
+      (do ()
+          ((not begin-token) (reverse rv))
+        (setf begin-token (find-non-space text-string end-token))
+        (setf end-token (find-space text-string begin-token))
+
+        (cond
+          ((and begin-token end-token)
+           (push (subseq text-string begin-token end-token) rv))
+          (begin-token
+           (push (subseq text-string begin-token) rv)))))))
+
+
 ;; Here we handle run-mode operations, the most common case.  We will
 ;; pass key-presses by their abbreviation strings, and will support a
 ;; space-separated argument after the abbreviation.  The
@@ -32,19 +62,7 @@
   (declare (ignorable check-for-interrupt-closure))
 
   (labels
-      ((tokenize (text-string)
-         (let ((cur-pos 0))
-           (do (rv)
-               (nil)
-             (multiple-value-bind (token next-pos)
-                 (read-from-string text-string nil nil
-                                   :start cur-pos)
-               (unless token
-                 (return-from tokenize (reverse rv)))
-               (setf cur-pos next-pos)
-               (push token rv)))))
-
-       (matching-key-struct (abbrev mode ks)
+      ((matching-key-struct (abbrev mode ks)
          (and (string= abbrev (key-struct-abbrev ks))
               (member mode (key-struct-avail-modes ks))))
 
