@@ -12,7 +12,10 @@
                (:file "modes")
                (:file "display" :depends-on ("modes"))
                (:file "key-structs"
-                      :depends-on ("stack" "modes"))
+                      :depends-on ("stack" "modes" "display"))
                (:file "calc1"
-                      :depends-on ("key-structs"))))
+                      :depends-on ("key-structs"))
+               (:file "engine"
+                      :depends-on ("stack" "modes" "key-structs" "calc1"))))
+                                           
            
