@@ -89,8 +89,20 @@
                         all-keys)))))
 
     (unless key
-      (return-from handle-one-keypress :UNKNOWN-COMMAND))
-
+      (let ((data (read-from-string key-string)))
+        (typecase data
+          (double-float
+           (push-stack stack data :DOUBLE-FLOAT)
+           (return-from handle-one-keypress :NORMAL-EXIT))
+          (single-float
+           (format t "Cannot handle single-precision floats")
+           (return-from handle-one-keypress :ERROR))
+          (rational
+           (push-stack stack data :RATIONAL)
+           (return-from handle-one-keypress :NORMAL-EXIT))
+          (t
+           (return-from handle-one-keypress :UNKNOWN-COMMAND)))))
+           
     (when (and (key-struct-takes-arg key)
                (not arg))
       (setf arg (funcall fetch-argument-closure abbrev))
