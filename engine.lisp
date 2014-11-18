@@ -1,5 +1,6 @@
 ;; The working engine for the calculator emulator
 
+(declaim (optimize (debug 3) (safety 3)))
 
 (defun get-new-stack-object (stack-size)
   (make-stack :num-registers stack-size))
@@ -57,52 +58,78 @@
 (defun handle-one-keypress (key-string
                             fetch-argument-closure
                             check-for-interrupt-closure
-                            stack mode)
+                            stack mode
+                            &key arg-is-num)
 
   (declare (ignorable check-for-interrupt-closure))
 
   (labels
-      ((matching-key-struct (abbrev mode ks)
+      ((specific-match (abbrev mode ks)
          (and (string= abbrev (key-struct-abbrev ks))
               (member mode (key-struct-avail-modes ks))))
 
-       (matching-key-fallback (abbrev mode ks)
-         (when (eq mode :RUN-MODE-NO-PROG)
-           (matching-key-struct abbrev :RUN-MODE ks))))
+       (wildcard-match (abbrev mode ks)
+         (declare (ignore mode))
+         (string= abbrev (key-struct-abbrev ks)))
 
-  (let* ((current-mode (modes-run/prog mode))
-         (all-keys (get-keys))
-         (tokenized (tokenize key-string))
-         (abbrev (first tokenized))
-         (arg (second tokenized))
-         (key (car (or (member-if
-                        #'(lambda (x)
-                            (matching-key-struct abbrev
-                                                 current-mode
-                                                 x))
-                        all-keys)
-                       (member-if
-                        #'(lambda (x)
-                            (matching-key-fallback abbrev
-                                                   current-mode
-                                                   x))
-                        all-keys)))))
+       (set-run-mode (stack mode)
+         (setf (modes-run/prog mode)
+               (if (stack-program-memory stack)
+                   :RUN-MODE
+                   :RUN-MODE-NO-PROG))))
 
-    (unless key
-      (let ((data (read-from-string key-string)))
-        (typecase data
-          (double-float
-           (push-stack stack data :DOUBLE-FLOAT)
-           (return-from handle-one-keypress :NORMAL-EXIT))
-          (single-float
-           (format t "Cannot handle single-precision floats")
-           (return-from handle-one-keypress :ERROR))
-          (rational
-           (push-stack stack data :RATIONAL)
+    (let* ((current-mode (modes-run/prog mode))
+           (all-keys (get-keys))
+           (tokenized (tokenize key-string))
+           (abbrev (first tokenized))
+           (arg (second tokenized))
+           (key (car (or (member-if
+                          #'(lambda (x)
+                              (specific-match abbrev
+                                              current-mode
+                                              x))
+                          all-keys)
+                         (member-if
+                          #'(lambda (x)
+                              (wildcard-match abbrev
+                                              current-mode
+                                              x))
+                          all-keys)))))
+
+      ;; Simple case when entire numbers are sent in by the UI
+      (when arg-is-num
+        (cond
+          ((numberp (read-from-string abbrev))
+           (push-stack stack
+                       (convert-string-rep-to-rational abbrev)
+                       :RATIONAL)
            (return-from handle-one-keypress :NORMAL-EXIT))
           (t
-           (return-from handle-one-keypress :UNKNOWN-COMMAND)))))
-           
+           (return-from handle-one-keypress :ERROR))))
+
+
+      ;; If we get here, it's a key press.
+
+      (unless key
+        (return-from handle-one-keypress :UNKNOWN-COMMAND))
+
+      (cond
+        ((key-struct-token-key key)
+         (let* ((token (second (funcall (key-struct-run-mode-fcn key)
+                                        stack mode)))
+                (result (add-token stack token)))
+         (case result
+           (:FINALIZE
+            (set-run-mode stack mode))
+           (:CONSTRUCTING
+            (setf (modes-run/prog mode) :NUMERIC-INPUT))))
+         (return-from handle-one-keypress :NORMAL-EXIT))
+        (t
+         ;; if there's a number in progress, push it and continue to
+         ;; process the keypress
+         (when (eq (modes-run/prog mode) :NUMERIC-INPUT)
+           (add-token stack :ENTER))))
+
     (when (and (key-struct-takes-arg key)
                (not arg))
       (setf arg (funcall fetch-argument-closure abbrev))
