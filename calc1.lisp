@@ -1,5 +1,7 @@
 ;; Defining the keys in the calculator.
 
+(declaim (optimize (debug 3) (safety 3)))
+
 (erase-keys)
 
 (define-toprow-key (1 #\A "1/x" "Reciprocal"
@@ -140,8 +142,6 @@
                 :row 2
                 :col 2
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
                :takes-argument t
                :updates-last-x nil
                :implicit-x nil
@@ -169,8 +169,6 @@
                 :col 2
                 :shift :F-YELLOW
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
                :takes-argument t
                :updates-last-x nil
                :implicit-x nil
@@ -190,19 +188,19 @@
        :RETCODE <- (list :GOSUB ARG)))))
 
 
-(define-op-key
-    (:location (make-location
-                :row 2
-                :col 2
-                :shift :G-BLUE
-                :category-1 :FLOW-CONTROL)
-               :takes-argument t
-               :updates-last-x nil
-               :implicit-x nil
-               :abbreviation "gosub"
-               :documentation "JSRs to location specified")
-  (assert (not (string-equal "(i)" ARG)))
-  :RETCODE <- (list :GOSUB ARG))
+;; (define-op-key
+;;     (:location (make-location
+;;                 :row 2
+;;                 :col 2
+;;                 :shift :G-BLUE
+;;                 :category-1 :FLOW-CONTROL)
+;;                :takes-argument t
+;;                :updates-last-x nil
+;;                :implicit-x nil
+;;                :abbreviation "gosub"
+;;                :documentation "JSRs to location specified")
+;;   (assert (not (string-equal "(i)" ARG)))
+;;   :RETCODE <- (list :GOSUB ARG))
 
 
 (define-op-key
@@ -211,8 +209,8 @@
                 :col 2
                 :shift :H-BLACK
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :implicit-x nil
                :abbreviation "rtn"
@@ -283,7 +281,7 @@
                :implicit-x nil
                :abbreviation "(i)"
                :documentation "Inserts the indirection-I argument")
-  :RETCODE <- '(:TOKEN "(i)"))
+  :RETCODE <- '(:SPECIAL "(i)"))
 
 
 (define-op-key
@@ -319,7 +317,7 @@
                 :row 2
                 :col 5
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:RUN-MODE)
+               :modelist (:RUN-MODE :NUMERIC-INPUT)
                :updates-last-x nil
                :abbreviation "sst"
                :implicit-x nil
@@ -334,7 +332,7 @@
                 :shift :F-YELLOW
                 :category-1 :FLOW-CONTROL)
                :takes-argument t
-               :modelist '(:PROGRAMMING-MODE)
+               :modelist (:PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "label"
                :implicit-x nil
@@ -349,7 +347,7 @@
                 :shift :G-BLUE
                 :category-1 :FLOW-CONTROL)
                :takes-argument t
-               :modelist '(:PROGRAM-EXECUTION)
+               :modelist (:PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "label-L"
                :implicit-x nil
@@ -363,7 +361,7 @@
                 :col 5
                 :shift :H-BLACK
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:RUN-MODE)
+               :modelist (:RUN-MODE :NUMERIC-INPUT)
                :updates-last-x nil
                :abbreviation "bst"
                :implicit-x nil
@@ -527,7 +525,7 @@
                 :width 2
                 :shift :F-YELLOW
                 :category-1 :EXTERNAL-I-O)
-               :modelist '(:RUN-MODE)
+               :modelist (:RUN-MODE :NUMERIC-INPUT)
                :updates-last-x nil
                :abbreviation "w/data"
                :implicit-x nil
@@ -542,7 +540,7 @@
                 :width 2
                 :shift :G-BLUE
                 :category-1 :EXTERNAL-I-O)
-               :modelist '(:PROGRAMMING-MODE)
+               :modelist (:PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "merge"
                :implicit-x nil
@@ -570,10 +568,11 @@
                 :row 4
                 :col 3
                 :category-1 :ARITHMETIC)
+               :modelist (:NUMERIC-INPUT)
                :abbreviation "chs"
-               :rational-safe t
-               :documentation "Changes the sign of X")
-  X <- (- X))
+               :implicit-x nil
+               :documentation "Changes the sign of number being formed")
+  :RETCODE <- '(:TOKEN :CHS))
 
 
 (define-op-key
@@ -581,11 +580,10 @@
                 :row 4
                 :col 3
                 :category-1 :ARITHMETIC)
-               :modelist '(:NUMERIC-INPUT)
                :abbreviation "chs"
-               :implicit-x nil
-               :documentation "Changes the sign of number being formed")
-  :RETCODE <- '(:TOKEN :CHS))
+               :rational-safe t
+               :documentation "Changes the sign of X")
+  X <- (- X))
 
 
 (define-op-key
@@ -619,19 +617,6 @@
                 :row 4
                 :col 4
                 :category-1 :NUMERIC)
-               :updates-last-x nil
-               :abbreviation "eex"
-               :implicit-x nil
-               :documentation "Starts a new number, 1e")
-  :RETCODE <- '(:TOKEN 1 :EEX))
-
-
-(define-op-key
-    (:location (make-location
-                :row 4
-                :col 4
-                :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT)
                :updates-last-x nil
                :abbreviation "eex"
                :implicit-x nil
@@ -672,6 +657,20 @@
                 :row 4
                 :col 5
                 :category-1 :STACK-MANIPULATION)
+               :modelist (:NUMERIC-INPUT)
+               :updates-last-x nil
+               :abbreviation "clx"
+               :implicit-x nil
+               :rational-safe t
+               :documentation "Resets the input line")
+  :RETCODE <- '(:TOKEN :CLX))
+
+
+(define-op-key
+    (:location (make-location
+                :row 4
+                :col 5
+                :category-1 :STACK-MANIPULATION)
                :updates-last-x nil
                :abbreviation "clx"
                :rational-safe t
@@ -683,22 +682,9 @@
     (:location (make-location
                 :row 4
                 :col 4
-                :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT)
-               :updates-last-x nil
-               :abbreviation "clx"
-               :implicit-x nil
-               :documentation "Restarts token entry")
-  :RETCODE <- '(:TOKEN :CLX))
-
-
-(define-op-key
-    (:location (make-location
-                :row 4
-                :col 4
                 :shift :F-YELLOW
                 :category-1 :PROGRAM-MEMORY)
-               :modelist '(:PROGRAMMING-MODE)
+               :modelist (:PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "clprog"
                :implicit-x nil
@@ -712,7 +698,7 @@
                 :col 4
                 :shift :H-BLACK
                 :category-1 :PROGRAM-MEMORY)
-               :modelist '(:PROGRAMMING-MODE)
+               :modelist (:PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "del"
                :implicit-x nil
@@ -739,8 +725,8 @@
                 :narrow-key t
                 :shift :F-YELLOW
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "x=0" 
                :rational-safe t
@@ -757,8 +743,8 @@
                 :narrow-key t
                 :shift :G-BLUE
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "x=y" 
                :rational-safe t
@@ -776,8 +762,6 @@
                 :narrow-key t
                 :shift :H-BLACK
                 :category-1 :FLAGS)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :takes-argument t
                :implicit-x nil
@@ -792,8 +776,6 @@
                 :row 5
                 :col 2
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "7" 
                :rational-safe t
@@ -844,8 +826,6 @@
                 :row 5
                 :col 3
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "8" 
                :rational-safe t
@@ -896,8 +876,6 @@
                 :row 5
                 :col 4
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "9" 
                :rational-safe t
@@ -963,8 +941,8 @@
                 :shift :F-YELLOW
                 :narrow-key t
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "x/=0"
                :rational-safe t
@@ -981,8 +959,8 @@
                 :shift :G-BLUE
                 :narrow-key t
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "x/=y"
                :rational-safe t
@@ -1012,8 +990,6 @@
                 :row 6
                 :col 2
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "4" 
                :rational-safe t
@@ -1065,8 +1041,6 @@
                 :row 6
                 :col 3
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "5" 
                :rational-safe t
@@ -1117,8 +1091,6 @@
                 :row 6
                 :col 4
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "6" 
                :rational-safe t
@@ -1184,8 +1156,8 @@
                 :shift :F-YELLOW
                 :narrow-key t
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "x<0"
                :rational-safe t
@@ -1202,8 +1174,8 @@
                 :shift :G-BLUE
                 :narrow-key t
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "x<=y"
                :rational-safe t
@@ -1220,8 +1192,8 @@
                 :col 1
                 :shift :H-BLACK
                 :category-1 :FLAGS)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :takes-argument t
                :abbreviation "F?"
@@ -1239,8 +1211,6 @@
                 :row 7
                 :col 2
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "1" 
                :rational-safe t
@@ -1281,8 +1251,8 @@
                 :col 2
                 :shift :H-BLACK
                 :category-1 :STACK-MANIPULATION)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "pause"
                :rational-safe t
@@ -1298,8 +1268,6 @@
                 :row 7
                 :col 3
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "2" 
                :rational-safe t
@@ -1352,8 +1320,6 @@
                 :row 7
                 :col 4
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "3" 
                :rational-safe t
@@ -1403,7 +1369,7 @@
                :rational-safe t
                :implicit-x nil
                :documentation "Review primary registers")
-  :RETCODE <- '(:TOKEN :REVIEW-REGISTERS))
+  :RETCODE <- '(:REVIEW-REGISTERS))
 
 
 
@@ -1427,8 +1393,8 @@
                 :shift :F-YELLOW
                 :narrow-key t
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "x>0"
                :rational-safe t
@@ -1445,8 +1411,8 @@
                 :shift :G-BLUE
                 :narrow-key t
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "x>y"
                :rational-safe t
@@ -1482,8 +1448,6 @@
                 :row 8
                 :col 2
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "0" 
                :rational-safe t
@@ -1536,8 +1500,6 @@
                 :row 8
                 :col 3
                 :category-1 :NUMERIC)
-               :modelist '(:NUMERIC-INPUT
-                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "." 
                :rational-safe t
@@ -1603,8 +1565,8 @@
                 :row 8
                 :col 4
                 :category-1 :FLOW-CONTROL)
-               :modelist '(:RUN-MODE
-                           :PROGRAM-EXECUTION)
+               :modelist (:RUN-MODE
+                          :PROGRAM-EXECUTION)
                :updates-last-x nil
                :abbreviation "r/s" 
                :rational-safe t
@@ -1619,8 +1581,8 @@
                 :col 4
                 :shift :F-YELLOW
                 :category-1 :STACK-MANIPULATION)
-               :modelist '(:PROGRAM-EXECUTION
-                           :PROGRAMMING-MODE)
+               :modelist (:PROGRAM-EXECUTION
+                          :PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "-x-" 
                :rational-safe t
@@ -1649,7 +1611,7 @@
                 :col 3
                 :shift :H-BLACK
                 :category-1 :PROGRAM-MEMORY)
-               :modelist '(:PROGRAMMING-MODE)
+               :modelist (:PROGRAMMING-MODE)
                :updates-last-x nil
                :abbreviation "space"
                :rational-safe t
