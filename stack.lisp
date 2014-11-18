@@ -1,6 +1,9 @@
 ;; Stack operations for the HP-67 emulator
 ;;
 
+(declaim (optimize (debug 3) (safety 3)))
+
+
 (defparameter *unlimited-indirection* nil
   "If non-nil, the I-register is allowed to modify memory/flags outside the normally-permitted range")
 
@@ -80,11 +83,124 @@
       val))
 
 
+(defstruct (token-assembler)
+  (mantissa-sign	1)
+  (mantissa		(make-string-output-stream))
+  (mantissa-digits	0)
+  (exponent-sign	1)
+  (exponent		(make-array 2))
+  (exponent-digits	0)
+
+  (translation		'((:0 . "0") (:1 . "1") (:2 . "2")
+                          (:3 . "3") (:4 . "4") (:5 . "5")
+                          (:6 . "6") (:7 . "7") (:8 . "8")
+                          (:9 . "9") (:DOT . ".") (:EEX . "d")
+                          (:ENTER . :ENTER) (:CLX . :CLX)
+                          (:CHS . :CHS)))
+
+  (seen-dot		nil)
+  (seen-expt		nil)
+  (finalized		nil))
+
+
+(defun produce-result (assembler)
+  (let ((s (make-string-output-stream))
+        (e-digs (token-assembler-exponent-digits assembler)))
+    (when (= (token-assembler-mantissa-sign assembler) -1)
+      (format s "-"))
+    (format s "~A" (get-output-stream-string (token-assembler-mantissa assembler)))
+    (format s "d")
+    (when (= (token-assembler-exponent-sign assembler) -1)
+      (format s "-"))
+    (cond
+      ((= e-digs 0) (format s "0"))
+      (t
+       (dotimes (i e-digs)
+         (format s (aref (token-assembler-exponent assembler) i)))))
+    (make-rational-from-sci-string (get-output-stream-string s))))
+      
+
+(defun add-token (stack token)
+  (let ((assembler (stack-assembler stack)))
+    (case token
+      (:CLX
+       (reset-token-assembler stack)
+       (return-from add-token :RESET))
+      (:ENTER
+       (cond
+         ((= (token-assembler-mantissa-digits assembler) 0)
+          (let ((x-val (pop-stack stack :RATIONAL)))
+            (push-stack stack x-val :RATIONAL)
+            (push-stack stack x-val :RATIONAL)))
+         (t
+          (push-stack stack (produce-result assembler) :RATIONAL))
+         (reset-token-assembler stack)
+         (return-from add-token :FINALIZE)))
+      (t
+       (if (token-assembler-seen-expt assembler)
+           (add-token-to-exponent assembler token)
+           (add-token-to-mantissa assembler token))
+       :CONSTRUCTING))))
+
+
+(defun add-token-to-exponent (assembler token)
+  (with-slots ((sign exponent-sign)
+               (exp exponent)
+               (exp-n exponent-digits)
+               (table translation))
+      assembler
+    (let ((val (cdr (assoc token table))))
+      (ecase token
+        ((:0 :1 :2 :3 :4 :5 :6 :7 :8 :9)
+         (cond
+           ((= exp-n 2)
+            (setf (aref exp 0) (aref exp 1))
+            (setf (aref exp 1) val))
+           (t
+            (setf (aref exp exp-n) val)
+            (incf exp-n))))
+        ((:DOT :EEX)
+         ;; do nothing
+         )
+        (:CHS
+         (setf sign (* -1 sign)))))))
+
+
+(defun add-token-to-mantissa (assembler token)
+  (with-slots ((sign mantissa-sign)
+               (mant mantissa)
+               (mant-n mantissa-digits)
+               (seen-dot seen-dot)
+               (seen-expt seen-expt)
+               (table translation))
+      assembler
+    (let ((val (cdr (assoc token table))))
+      (ecase token
+        ((:0 :1 :2 :3 :4 :5 :6 :7 :8 :9)
+         (when (< mant-n *digits-in-display*)
+           (format mant "~A" val)
+           (incf mant-n)))
+        (:DOT
+         (unless seen-dot
+           (setf seen-dot t)
+           (format mant ".")))
+        (:EEX
+         (when (= mant-n 0)
+           (format mant "1")
+           (incf mant-n))
+         (setf seen-expt t))
+        (:CHS
+         (setf sign (* -1 sign)))))))
+
+
+
 (defstruct (stack)
   (registers		(list 0 0 0 0))
   (registers-copy	nil)
   (num-registers	4)
   (last-x		0)
+
+  (assembler		(make-token-assembler))
 
   (memory		nil)
   (flags		(copy-alist +initial-flag-settings+))
@@ -93,6 +209,7 @@
 
   (complex-allowed-p	nil)
   (error-state		nil))
+
 
 
 (defun clear-primary-memory-registers (stack)
@@ -329,6 +446,12 @@
       (trim-list-to-length (stack-registers stack)
                            (stack-num-registers stack))))
   val)
+
+
+
+(defun reset-token-assembler (stack)
+  (setf (stack-assembler stack) (make-token-assembler)))
+
 
 
 (defun rolldown-stack (stack)
