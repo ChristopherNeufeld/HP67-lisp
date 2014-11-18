@@ -1,7 +1,9 @@
 ;; Code related to the modes of operation of the calculator.
 
+(declaim (optimize (debug 3) (safety 3)))
+
 (defstruct (modes)
-  (angles		:RADIANS)
+  (angles		:DEGREES)
   (run/prog		:RUN-MODE-NO-PROG)
   (complex		nil)
 
