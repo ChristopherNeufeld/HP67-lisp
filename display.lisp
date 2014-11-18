@@ -1,8 +1,6 @@
 ;; Code for rendering numbers for display
 
-(defparameter *digits-in-display* 10)
-(defparameter *overflow-exponent* 99)  ;; larger than this, and
-                                       ;; there's an error
+(declaim (optimize (debug 3) (safety 3)))
 
 ;; This isn't actually that simple a problem.  Note, for instance,
 ;; that the format directive is permitted to round up or round down
@@ -171,7 +169,7 @@
 
   (when (= rval 0)
     (return-from render-rational-as-sci
-      (format nil "~,vE" n-digits 0.0)))
+      (values (format nil "~,vE" n-digits 0.0) t)))
 
   (let* ((rv (make-string-output-stream))
          (sign (if (> rval 0) 1 -1))
@@ -294,7 +292,8 @@
        (setf whole-part (subseq string 0 d-pos))
        (when (= (length whole-part) 0)
          (setf whole-part "0"))
-       (setf frac-part (subseq string (1+ d-pos))))
+       (when (< (1+ d-pos) (length string))
+         (setf frac-part (subseq string (1+ d-pos)))))
       (t
        (setf whole-part (copy-seq string))))
 
