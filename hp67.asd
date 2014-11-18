@@ -8,9 +8,10 @@
   :version "0.1"
   :author "Christopher Neufeld"
   :licence "GPL v3"
-  :components ((:file "stack")
+  :components ((:file "stack" :depends-on ("constants"))
+               (:file "constants")
                (:file "modes")
-               (:file "display" :depends-on ("modes"))
+               (:file "display" :depends-on ("modes" "constants"))
                (:file "key-structs"
                       :depends-on ("stack" "modes" "display"))
                (:file "calc1"
