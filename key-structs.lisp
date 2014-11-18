@@ -17,6 +17,7 @@
 ;; so, we need some code to rewrite this, when it arrives as macro
 ;; arguments.
 
+(declaim (optimize (debug 3) (safety 3)))
 
 (defparameter *rcode* :RETCODE)
 (defparameter *assign* '<-)
@@ -79,6 +80,7 @@
 (defstruct (key-struct)
   (key-location		nil)
   (key-id		nil)
+  (token-key		nil)
   (avail-modes		'(:RUN-MODE :RUN-MODE-NO-PROG
                           :PROGRAM-EXECUTION :PROGRAMMING-MODE))
   (abbrev		nil)
@@ -206,6 +208,10 @@
          (setf rv (append rv (list (first pos)))))))))
 
 
+(defun is-token-rule (rules-list)
+  (car (member :TOKEN (get-symbols-in-list rules-list))))
+
+
 ;; This is going to change a basic rules list into explicit pops,
 ;; pushes, and exception handling
 (defun expand-rules (rules-list &key
@@ -213,6 +219,7 @@
                                   update-last-x
                                   rational-safe
                                   op-takes-arg)
+
   (let* ((varnames '(X Y Z W))
          (rflag (if rational-safe :RATIONAL :DOUBLE-FLOAT))
          (stack-var (gensym))
@@ -348,9 +355,7 @@
 (defmacro define-op-key ((&key
                           location
                           (id (make-new-id))
-                          (modelist '(:RUN-MODE :RUN-MODE-NO-PROG
-                                      :PROGRAM-EXECUTION
-                                      :PROGRAMMING-MODE))
+                          modelist
                           abbreviation
                           (updates-last-x t)
                           rational-safe
@@ -368,6 +373,7 @@
     `(register-key-structure
       (make-key-struct :key-location ,location
                        :key-id ,id
+                       :token-key ,(is-token-rule `(,@run-mode-forms))
                        :avail-modes ',modelist
                        :abbrev ,abbreviation
                        :takes-arg ,takes-argument
@@ -404,8 +410,6 @@
                      :row 1
                      :col ,col
                      :category-1 :FLOW-CONTROL)
-                    :modelist '(:RUN-MODE :PROGRAM-EXECUTION
-                                :PROGRAMMING-MODE)
                     :abbreviation ,(format nil
                                            "GSB-~C"
                                            letter)
@@ -422,8 +426,6 @@
                      :row 1
                      :col ,col
                      :category-1 :FLOW-CONTROL)
-                    :modelist '(:RUN-MODE :PROGRAM-EXECUTION
-                                :PROGRAMMING-MODE)
                     :abbreviation ,(format nil
                                            "GSB-~C"
                                            (char-downcase letter))
