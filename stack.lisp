@@ -133,9 +133,9 @@
             (push-stack stack x-val :RATIONAL)
             (push-stack stack x-val :RATIONAL)))
          (t
-          (push-stack stack (produce-result assembler) :RATIONAL))
-         (reset-token-assembler stack)
-         (return-from add-token :FINALIZE)))
+          (push-stack stack (produce-result assembler) :RATIONAL)))
+       (reset-token-assembler stack)
+       (return-from add-token :FINALIZE))
       (t
        (if (token-assembler-seen-expt assembler)
            (add-token-to-exponent assembler token)
