@@ -19,6 +19,8 @@
 
 (declaim (optimize (debug 3) (safety 3)))
 
+(in-package :HP67-INTERNALS)
+
 (defparameter *rcode* :RETCODE)
 (defparameter *assign* '<-)
 

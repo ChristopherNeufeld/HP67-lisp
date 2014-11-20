@@ -2,6 +2,8 @@
 
 (declaim (optimize (debug 3) (safety 3)))
 
+(in-package :HP67-INTERNALS)
+
 (defstruct (modes)
   (angles		:DEGREES)
   (run/prog		:RUN-MODE-NO-PROG)

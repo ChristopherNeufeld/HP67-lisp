@@ -2,6 +2,8 @@
 
 (declaim (optimize (debug 3) (safety 3)))
 
+(in-package :HP67-INTERNALS)
+
 (erase-keys)
 
 (define-toprow-key (1 #\A "1/x" "Reciprocal"

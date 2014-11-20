@@ -2,6 +2,11 @@
 
 (declaim (optimize (debug 3) (safety 3)))
 
+(in-package :HP67-INTERNALS)
+(export '(HANDLE-ONE-KEYPRESS GET-NEW-STACK-OBJECT GET-NEW-MODE-OBJECT))
+
+
+
 (defun get-new-stack-object (stack-size)
   (make-stack :num-registers stack-size))
 

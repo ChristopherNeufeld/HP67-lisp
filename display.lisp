@@ -2,6 +2,8 @@
 
 (declaim (optimize (debug 3) (safety 3)))
 
+(in-package :HP67-INTERNALS)
+
 ;; This isn't actually that simple a problem.  Note, for instance,
 ;; that the format directive is permitted to round up or round down
 ;; from 0.5, but the calculator rounds 0.5 to 1, and -0.5 to -1.
