@@ -1631,7 +1631,7 @@
                :rational-safe t
                :documentation "Adds X to a register")
   (let ((prev (recall-mem ARG)))
-    (setf prev (+ X prev))
+    (setf prev (+ prev X))
     (store-mem ARG prev)
     X <- X))
 
@@ -1646,7 +1646,7 @@
                :rational-safe t
                :documentation "Subtracts X from a register")
   (let ((prev (recall-mem ARG)))
-    (setf prev (- X prev))
+    (setf prev (- prev X))
     (store-mem ARG prev)
     X <- X))
 
@@ -1662,7 +1662,7 @@
                :rational-safe t
                :documentation "Multiplies X into a register")
   (let ((prev (recall-mem ARG)))
-    (setf prev (* X prev))
+    (setf prev (* prev X))
     (store-mem ARG prev)
     X <- X))
 
