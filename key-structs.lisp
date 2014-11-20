@@ -118,6 +118,12 @@
     
     (push ks keys))
 
+  (defun get-compound-keys ()
+    (remove-if-not #'(lambda (x)
+                       (location-compound-key
+                        (key-struct-key-location x)))
+                   (get-keys)))
+
   (defun get-keys ()
     keys))
 
