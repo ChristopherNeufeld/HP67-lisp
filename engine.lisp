@@ -130,18 +130,32 @@
          (when (eq (modes-run/prog mode) :NUMERIC-INPUT)
            (add-token stack :ENTER))))
 
-    (when (and (key-struct-takes-arg key)
-               (not arg))
-      (setf arg (funcall fetch-argument-closure abbrev))
-      (unless arg
-        (return-from handle-one-keypress :MISSING-ARGUMENT)))
+      (when (and (key-struct-takes-arg key)
+                 (not arg))
+        (setf arg (funcall fetch-argument-closure abbrev))
+        (unless arg
+          (return-from handle-one-keypress :MISSING-ARGUMENT)))
 
-    (if (key-struct-takes-arg key)
-        (funcall (key-struct-run-mode-fcn key)
-                 stack mode arg)
-        (funcall (key-struct-run-mode-fcn key)
-                 stack mode))
 
-    (if (stack-error-state stack)
-        :ERROR
-        :NORMAL-EXIT))))
+      ;; Look for compound keys
+      (dolist (k (get-compound-keys))
+        (let* ((location (key-struct-key-location k))
+               (ck (location-compound-key location)))
+          (when (and (string= abbrev (first ck))
+                     (string= arg (second ck)))
+            (setf key k)
+            (setf arg (funcall fetch-argument-closure
+                               (key-struct-abbrev key)))
+            (unless arg
+              (return-from handle-one-keypress :MISSING-ARGUMENT))
+            (return))))
+            
+      (if (key-struct-takes-arg key)
+          (funcall (key-struct-run-mode-fcn key)
+                   stack mode arg)
+          (funcall (key-struct-run-mode-fcn key)
+                   stack mode))
+
+      (if (stack-error-state stack)
+          :ERROR
+          :NORMAL-EXIT))))
