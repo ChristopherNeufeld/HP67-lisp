@@ -2,7 +2,19 @@
 
 (defpackage :HP67-INTERNALS
   (:use :COMMON-LISP)
-  )
+  (:export :STACK-REGISTERS :STACK-MEMORY       ;; stack.lisp
+           :STACK-PROGRAM-MEMORY :STACK-ERROR-STATE
+
+           ;; engine.lisp
+           :HANDLE-ONE-KEYPRESS :GET-NEW-STACK-OBJECT
+           :GET-NEW-MODE-OBJECT
+
+           ;; key-structs.lisp
+           :KEY-STRUCT-ABBREV
+           :KEY-STRUCT-KEY-LOCATION
+           :LOCATION-CATEGORY-1 :LOCATION-CATEGORY-2
+           :LOCATION-COL :LOCATION-ROW
+           ))
 
 (in-package :HP67-INTERNALS)
 
