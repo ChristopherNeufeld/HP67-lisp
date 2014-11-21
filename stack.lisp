@@ -5,10 +5,6 @@
 
 (in-package :HP67-INTERNALS)
 
-(export '(STACK-REGISTERS STACK-MEMORY STACK-PROGRAM-MEMORY
-          STACK-ERROR-STATE))
-
-
 
 (defparameter *unlimited-indirection* nil
   "If non-nil, the I-register is allowed to modify memory/flags outside the normally-permitted range")
