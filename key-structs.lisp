@@ -120,6 +120,19 @@
     
     (push ks keys))
 
+  (defun get-key-abbrevs ()
+    (mapcar #'key-struct-abbrev (get-keys)))
+
+  (defun get-active-key-abbrevs (mode)
+    (let ((mode (modes-run/prog mode)))
+      (mapcar #'key-struct-abbrev
+              (remove-if
+               #'(lambda (x)
+                   (let ((ksam (key-struct-avail-modes x)))
+                     (not (or (not ksam)
+                              (member mode ksam)))))
+               (get-keys)))))
+
   (defun get-compound-keys ()
     (remove-if-not #'(lambda (x)
                        (location-compound-key
