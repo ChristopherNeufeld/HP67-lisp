@@ -981,7 +981,7 @@
                 :category-1 :FLAGS)
                :takes-argument t
                :updates-last-x nil
-               :abbreviation "CF"
+               :abbreviation "cf"
                :implicit-x nil
                :documentation "Clears a flag")
   (clear-flag ARG))
@@ -1198,7 +1198,7 @@
                           :PROGRAMMING-MODE)
                :updates-last-x nil
                :takes-argument t
-               :abbreviation "F?"
+               :abbreviation "f?"
                :rational-safe t
                :implicit-x nil
                :documentation "Tests a flag")
