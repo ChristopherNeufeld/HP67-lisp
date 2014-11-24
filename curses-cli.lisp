@@ -7,10 +7,13 @@
   (:use :COMMON-LISP :ASDF/INTERFACE)
   (:import-from :HP67-INTERNALS
                 :GET-NEW-STACK-OBJECT
+                :STACK-REGISTERS
                 :GET-NEW-MODE-OBJECT
                 :GET-KEY-ABBREVS
+                :HANDLE-ONE-KEYPRESS
                 :KEY-STRUCT-ABBREV
                 :KEY-STRUCT-KEY-LOCATION
+                :FORMAT-FOR-PRINTING
                 :LOCATION-CATEGORY-1
                 :LOCATION-CATEGORY-2
                 :LOCATION-COL :LOCATION-ROW
@@ -28,6 +31,10 @@
     "GSB-a" "GSB-b" "GSB-c" "GSB-d" "GSB-e"
     "label-L"))
 
+;; keys that, if the first entry in a line, immediately take effect
+(defparameter *hot-keys*
+  '(#\+ #\- #\* #\/))
+
 
 (defparameter *category-precedence*
   '(:ARITHMETIC :ALGEBRAIC
@@ -36,7 +43,19 @@
     :MEMORY :INDIRECTION :MODE-SWITCH
     :FLAGS :FLOW_CONTROL :PROGRAM-MEMORY
     :EXTERNAL-I-O))
-                                      
+
+
+#+sbcl
+(defun allowed-character (c)
+  (let ((c-num (char-int c)))
+    (or (char= c #\Newline)
+        (char= c #\Space)
+        (= c-num 4)
+        (<= 32 c-num 127))))
+
+#+sbcl
+(defun quit-character (c)
+  (= (char-int c) 4))
 
 
 (defun comp< (key1 key2)
@@ -80,54 +99,82 @@
                 (key-struct-abbrev key2))))))
 
 
-
         
 (defun main()
   (charms:with-curses ()
-    (charms:disable-echoing)
-    (charms:disable-extra-keys charms:*standard-window*)
-    (charms:enable-non-blocking-mode charms:*standard-window*)
-    (charms:enable-raw-input :interpret-control-characters t)
+    (let ((w charms:*standard-window*)
+          n-rows n-cols)
 
-    (multiple-value-bind (n-cols n-rows)
-        (charms:window-dimensions charms:*standard-window*)
+      (multiple-value-setq
+          (n-cols n-rows)
+        (charms:window-dimensions w))
 
-      (let* ((stack (get-new-stack-object 4))
-             (mode (get-new-mode-object))
-             (all-keys (get-key-abbrevs mode
-                                        :sort-fcn #'comp<
-                                        :veto-list *excluded-keys*))
-             (maxlen (apply 'max
-                            (mapcar 'length all-keys)))
-             (keys-per-row (floor (/ n-cols (1+ maxlen)))))
+      (macrolet
+          ((wsc (ostring)
+             `(charms:write-string-at-cursor w ,ostring)))
+        
+        (charms:enable-echoing)
+        (charms:disable-extra-keys w)
+        (charms:disable-non-blocking-mode w)
+        (charms:enable-raw-input :interpret-control-characters t)
 
-        (do (exit-requested)
-            (exit-requested)
+        (let* ((stack (get-new-stack-object 4))
+               (mode (get-new-mode-object))
+               (all-keys (get-key-abbrevs mode
+                                          :sort-fcn #'comp<
+                                          :veto-list *excluded-keys*))
+               (maxlen (apply 'max
+                              (mapcar 'length all-keys)))
+               (keys-per-row (floor (/ n-cols (1+ maxlen)))))
 
-          (charms:clear-window charms:*standard-window*)
+          (do (exit-requested)
+              (exit-requested)
 
-          (let ((active-keys (get-key-abbrevs mode
-                                              :sort-fcn #'comp<
-                                              :veto-list *excluded-keys*
-                                              :limit-to-mode t))
-                (i 0))
+            (charms:clear-window w)
 
-            (dolist (candidate all-keys)
-              (when (member candidate active-keys
-                            :test 'string=)
-                (multiple-value-bind (r c)
-                    (floor i keys-per-row)
-                  (charms:move-cursor charms:*standard-window*
-                                      (* c (1+ maxlen))
-                                      r))
-                (charms:write-string-at-cursor charms:*standard-window*
-                                               candidate))
-              (incf i))
+            (let ((active-keys (get-key-abbrevs mode
+                                                :sort-fcn #'comp<
+                                                :veto-list *excluded-keys*
+                                                :limit-to-mode t))
+                  (i 0)
+                  (accumulator (make-string-output-stream)))
 
-            (charms:refresh-window charms:*standard-window*)
+              (dolist (candidate all-keys)
+                (when (member candidate active-keys
+                              :test 'string=)
+                  (multiple-value-bind (r c)
+                      (floor i keys-per-row)
+                    (charms:move-cursor w (* c (1+ maxlen)) r))
+                  (wsc candidate))
+                (incf i))
 
-            (sleep 4)
+              (dotimes (j 4)
+                (let ((entry (nth j (stack-registers stack))))
+                  (when entry
+                    (charms:move-cursor w 0 (- n-rows j 4))
+                    (wsc (format-for-printing mode entry)))))
 
-            (setf exit-requested t)
+              (charms:move-cursor w 0 (- n-rows 2))
 
-            ))))))
+              (charms:refresh-window w)
+
+              (do ((pos 0)
+                   (c (charms:get-char w) (charms:get-char w)))
+                  ((char= c #\Newline))
+
+                (cond
+                  ((quit-character c)
+                   (return-from main))
+                  ((allowed-character c)
+                   (format accumulator "~C" c)
+                   (incf pos)))
+
+                (when (and (= pos 0)
+                           (member c *hot-keys* :test 'char=))
+                  (return)))
+
+              (let ((result (get-output-stream-string accumulator)))
+                (handle-one-keypress result nil nil stack mode
+                                     :arg-is-num t))))
+
+              )))))
