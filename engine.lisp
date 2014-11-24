@@ -98,17 +98,13 @@
                                               x))
                           all-keys)))))
 
-      ;; Simple case when entire numbers are sent in by the UI
+      ;; Simple case when entire numbers might be sent in by the UI
       (when arg-is-num
-        (cond
-          ((numberp (read-from-string abbrev))
-           (push-stack stack
-                       (convert-string-rep-to-rational abbrev)
-                       :RATIONAL)
-           (return-from handle-one-keypress :NORMAL-EXIT))
-          (t
-           (return-from handle-one-keypress :ERROR))))
-
+        (when (numberp (read-from-string abbrev))
+          (push-stack stack
+                      (convert-string-rep-to-rational abbrev)
+                      :RATIONAL)
+          (return-from handle-one-keypress :NORMAL-EXIT)))
 
       ;; If we get here, it's a key press.
 
