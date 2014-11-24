@@ -169,7 +169,7 @@
                    (format accumulator "~C" c)
                    (incf pos)))
 
-                (when (and (= pos 0)
+                (when (and (= pos 1)
                            (member c *hot-keys* :test 'char=))
                   (return)))
 
