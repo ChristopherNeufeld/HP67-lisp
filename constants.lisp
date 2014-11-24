@@ -14,6 +14,9 @@
            :KEY-STRUCT-KEY-LOCATION
            :LOCATION-CATEGORY-1 :LOCATION-CATEGORY-2
            :LOCATION-COL :LOCATION-ROW :LOCATION-NARROW-KEY
+
+           ;; display.lisp
+           :FORMAT-FOR-PRINTING
            ))
 
 (in-package :HP67-INTERNALS)
