@@ -676,7 +676,9 @@
                :updates-last-x nil
                :abbreviation "clx"
                :rational-safe t
+               :can-clear-errors t
                :documentation "Erases the X register")
+  (clear-error-state)
   X <- 0)
 
 
