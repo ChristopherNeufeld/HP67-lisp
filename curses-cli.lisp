@@ -8,6 +8,7 @@
   (:import-from :HP67-INTERNALS
                 :GET-NEW-STACK-OBJECT
                 :STACK-REGISTERS
+                :STACK-ERROR-STATE
                 :GET-NEW-MODE-OBJECT
                 :GET-KEY-ABBREVS
                 :HANDLE-ONE-KEYPRESS
@@ -56,6 +57,12 @@
 #+sbcl
 (defun quit-character (c)
   (= (char-int c) 4))
+
+#+sbcl
+(defun rubout-character (c)
+  (or (char= c #\Rubout)
+      (= (char-int c) 263)))
+
 
 
 (defun comp< (key1 key2)
@@ -114,9 +121,9 @@
              `(charms:write-string-at-cursor w ,ostring)))
         
         (charms:enable-echoing)
-        (charms:disable-extra-keys w)
+        (charms:enable-extra-keys w)
         (charms:disable-non-blocking-mode w)
-        (charms:enable-raw-input :interpret-control-characters t)
+        (charms:enable-raw-input)
 
         (let* ((stack (get-new-stack-object 4))
                (mode (get-new-mode-object))
@@ -125,7 +132,9 @@
                                           :veto-list *excluded-keys*))
                (maxlen (apply 'max
                               (mapcar 'length all-keys)))
-               (keys-per-row (floor (/ n-cols (1+ maxlen)))))
+               (keys-per-row (floor (/ n-cols (1+ maxlen))))
+               (key-rows (1+ (floor (/ (length all-keys)
+                                       keys-per-row)))))
 
           (do (exit-requested)
               (exit-requested)
@@ -148,11 +157,17 @@
                   (wsc candidate))
                 (incf i))
 
+              (when (stack-error-state stack)
+                (charms:move-cursor w 0 (+ 2 key-rows))
+                (wsc (format nil "~A" (stack-error-state stack))))
+
               (dotimes (j 4)
                 (let ((entry (nth j (stack-registers stack))))
                   (when entry
                     (charms:move-cursor w 0 (- n-rows j 4))
-                    (wsc (format-for-printing mode entry)))))
+                    (if (and (= j 0) (stack-error-state stack))
+                        (wsc "<<<ERROR>>>")
+                        (wsc (format-for-printing mode entry))))))
 
               (charms:move-cursor w 0 (- n-rows 2))
 
@@ -163,6 +178,18 @@
                   ((char= c #\Newline))
 
                 (cond
+                  ((rubout-character c)
+                   (when (> pos 0)
+                     (let ((contents (get-output-stream-string accumulator)))
+                       (format accumulator
+                               "~A"
+                               (subseq contents
+                                       0
+                                       (- (length contents) 1))))
+                     (charms:move-cursor w (1- pos) (- n-rows 2))
+                     (wsc " ")
+                     (decf pos)
+                     (charms:move-cursor w pos (- n-rows 2))))
                   ((quit-character c)
                    (return-from main))
                   ((allowed-character c)
