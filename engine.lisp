@@ -11,6 +11,17 @@
   (make-modes))
 
 
+(defun string-may-contain-number (text)
+  (let ((extras '(#\e #\E #\d #\D #\. #\-)))
+    (dotimes (i (length text))
+      (let ((c (char text i)))
+        (unless (or (digit-char-p c)
+                    (member c extras))
+          (return-from string-may-contain-number nil)))))
+  t)
+
+
+
 (defun tokenize (text-string)
   (labels
       ((find-non-space (seq pos)
@@ -100,7 +111,8 @@
 
       ;; Simple case when entire numbers might be sent in by the UI
       (when arg-is-num
-        (when (numberp (read-from-string abbrev))
+        (when (and (string-may-contain-number abbrev)
+                   (numberp (read-from-string abbrev)))
           (push-stack stack
                       (convert-string-rep-to-rational abbrev)
                       :RATIONAL)
@@ -147,12 +159,16 @@
             (unless arg
               (return-from handle-one-keypress :MISSING-ARGUMENT))
             (return))))
-            
-      (if (key-struct-takes-arg key)
-          (funcall (key-struct-run-mode-fcn key)
-                   stack mode arg)
-          (funcall (key-struct-run-mode-fcn key)
-                   stack mode))
+
+      (when (or (not (stack-error-state stack))
+                (key-struct-can-clear-errors key))
+        
+        
+        (if (key-struct-takes-arg key)
+            (funcall (key-struct-run-mode-fcn key)
+                     stack mode arg)
+            (funcall (key-struct-run-mode-fcn key)
+                     stack mode)))
 
       (if (stack-error-state stack)
           :ERROR
