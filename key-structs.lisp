@@ -89,6 +89,7 @@
   (run-mode-form	nil)
   (run-mode-fcn		nil)
   (takes-arg		nil)
+  (can-clear-errors	nil)
   (doc-string		nil))
   
 
@@ -334,6 +335,8 @@
                 `(swap-primary-secondary ,',stack-var))
               (clear-registers ()
                 `(clear-primary-memory-registers ,',stack-var))
+              (clear-error-state ()
+                `(setf (stack-error-state ,',stack-var) nil))
 
               (clear-program ()
                 `(clear-program-memory ,',stack-var ,',state-var))
@@ -394,6 +397,7 @@
                           rational-safe
                           takes-argument
                           (implicit-x t)
+                          can-clear-errors
                           documentation)
                          &body run-mode-forms)
   (let ((run-forms
@@ -410,6 +414,7 @@
                        :avail-modes ',modelist
                        :abbrev ,abbreviation
                        :takes-arg ,takes-argument
+                       :can-clear-errors ,can-clear-errors
                        :doc-string ,documentation
                        :run-mode-form ',run-forms
                        :run-mode-fcn ,run-forms))))
