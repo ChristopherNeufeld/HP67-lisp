@@ -678,7 +678,9 @@
                :rational-safe t
                :can-clear-errors t
                :documentation "Erases the X register")
-  (clear-error-state)
+  (when (clear-error-state)
+    (roll-stack-down))  ;; when in error state, the stack pops are
+                        ;; no-ops, so we have to do it by hand
   X <- 0)
 
 
