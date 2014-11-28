@@ -336,7 +336,10 @@
               (clear-registers ()
                 `(clear-primary-memory-registers ,',stack-var))
               (clear-error-state ()
-                `(setf (stack-error-state ,',stack-var) nil))
+                "Returns non-nil if there was an error."
+                `(prog1
+                     (stack-error-state ,',stack-var)
+                   (setf (stack-error-state ,',stack-var) nil)))
 
               (clear-program ()
                 `(clear-program-memory ,',stack-var ,',state-var))
@@ -379,6 +382,8 @@
 
                ((or
                  arithmetic-error simple-error
+                 invalid-float-arrived single-precision-float
+                 overflow
                  not-real-number i-register-range-error) (c)
                  (set-error-state ,stack-var c)
                 (setf ,ret-code-var '(:ERROR))
