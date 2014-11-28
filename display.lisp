@@ -33,7 +33,7 @@
 
 (defun round-to-ultimate-precision (rval)
   "Takes a rational and returns a new one, in the exact precision of the calculator (10 digits)"
-  (assert (rational rval))
+  (assert (rationalp rval))
   (multiple-value-bind (rep in-bounds)
       (render-rational-as-sci rval (1- *digits-in-display*))
     (values (convert-string-rep-to-rational rep)
