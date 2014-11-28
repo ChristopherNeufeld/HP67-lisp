@@ -17,7 +17,7 @@
 
 
 (define-condition not-real-number (error)
-  ((val		:initarg value
+  ((val		:initarg :value
                 :reader get-val))
   (:documentation "Complex number encountered in real-only mode.")
   (:report (lambda (c s)
@@ -33,7 +33,7 @@
 
 
 (define-condition invalid-float-arrived (error)
-  ((val		:initarg value
+  ((val		:initarg :value
                 :reader get-val))
   (:documentation "A floating-point number was pushed when rationals were promised.  This is a coding bug and should be fixed.")
   (:report (lambda (c s)
@@ -41,7 +41,7 @@
                      (get-val c)))))
 
 (define-condition single-precision-float (error)
-  ((val		:initarg value
+  ((val		:initarg :value
                 :reader get-val))
   (:documentation "A single-precision floating-point number was seen.  This is below the promised precision of the calculator, and is a programming bug.")
   (:report (lambda (c s)
@@ -49,11 +49,11 @@
                      (get-val c)))))
 
 (define-condition i-register-range-error (error)
-  ((val		:initarg value
+  ((val		:initarg :value
                 :reader get-val)
-   (min		:initarg min-allowed
+   (min		:initarg :min-allowed
                 :reader get-min)
-   (max		:initarg max-allowed
+   (max		:initarg :max-allowed
                 :reader get-max))
   (:documentation "I-register out of range for operation.")
   (:report (lambda (c s)
@@ -277,6 +277,10 @@
 
 
 (defun store-memory (stack name val rflag)
+  (when (and (complexp val)
+             (not (stack-complex-allowed-p stack)))
+    (error (make-condition 'not-real-number
+                           :value val)))
   (setf name (canonicalize-memory-name stack name))
   (setf val (fix-input-val val rflag))
   (store-memory-by-name stack name val)
@@ -435,14 +439,13 @@
 
 (defun push-stack (stack val rflag)
   "Pushes an element on the stack."
-  (setf val (fix-input-val val rflag))
-
   (unless (stack-error-state stack)
     (when (and (complexp val)
                (not (stack-complex-allowed-p stack)))
       (error (make-condition 'not-real-number
                              :value val)))
 
+    (setf val (fix-input-val val rflag))
     (push val (stack-registers stack))
     (when (/= 0 (stack-num-registers stack))
       (trim-list-to-length (stack-registers stack)
