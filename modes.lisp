@@ -38,6 +38,12 @@
       num))
 
 (defun set-display-digits (mode num)
+  (when (stringp num)
+    (assert (= (length num) 1))
+    (let ((ch (char num 0)))
+      (assert (digit-char-p ch))
+      (setf num (read-from-string num))))
+
   (assert (<= 0 num 9))
   (setf (modes-digits mode) num))
 
