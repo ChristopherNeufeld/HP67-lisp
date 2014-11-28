@@ -171,7 +171,7 @@
 
   (when (= rval 0)
     (return-from render-rational-as-sci
-      (values (format nil "~,vE" n-digits 0.0) t)))
+      (values (format nil "~,vFe00" n-digits 0.0) t)))
 
   (let* ((rv (make-string-output-stream))
          (sign (if (> rval 0) 1 -1))
