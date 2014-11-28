@@ -8,6 +8,7 @@
   (:import-from :HP67-INTERNALS
                 :GET-NEW-STACK-OBJECT
                 :STACK-REGISTERS
+                :STACK-MEMORY
                 :STACK-ERROR-STATE
                 :GET-NEW-MODE-OBJECT
                 :GET-KEY-ABBREVS
@@ -169,6 +170,14 @@
                         (wsc "<<<ERROR>>>")
                         (wsc (format-for-printing mode entry))))))
 
+              (dotimes (j 4)
+                (let ((entry (nth j (stack-memory stack))))
+                  (when entry
+                    (charms:move-cursor w 20 (- n-rows j 4))
+                    (wsc (format nil "~A  ~A"
+                                 (car entry)
+                                 (format-for-printing mode (cdr entry)))))))
+              
               (charms:move-cursor w 0 (- n-rows 2))
 
               (charms:refresh-window w)
