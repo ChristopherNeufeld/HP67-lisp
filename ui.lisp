@@ -2,7 +2,7 @@
 
 (defpackage :HP67-UI
   (:use :COMMON-LISP)
-  (:export
+  (:export :UI-BASE :UI-SET-ACTIVE-MODE :UI-PAINT :UI-GET-INPUT
    ))
 
 (in-package :HP67-UI)
@@ -18,6 +18,8 @@
                         :initform nil)
    (display-digits	:reader get-display-digits
                         :initform nil)
+   (complex-mode	:reader get-complex-mode
+                        :initform nil)
    (error-text		:reader get-error-text
                         :initform "")
    (stack-real-contents	:reader get-stack-real-contents
@@ -29,8 +31,10 @@
    (program-contents	:reader get-program-contents
                         :initform nil)
    (program-counter	:reader get-program-counter
-                        :initform nil)))
+                        :initform nil)
 
+   (quit-requested	:accessor get-quit-requested
+                        :initform nil)))
 
 
 (defgeneric ui-set-active-keys (ui active-key-list)
@@ -109,10 +113,17 @@ whenever new program steps are present."))
   (:documentation "Used by the UI to retrieve a particular step
 number from the program memory."))
 
-(defgeneric ui-set-program-counter (ui)
+(defgeneric ui-set-program-counter (ui pc)
   (:documentation "Inform the UI of what program step would next
 be executed if program execution were to begin.  The engine will
 attempt to call this only when it has changed."))
+
+(defgeneric ui-get-input (ui)
+  (:documentation "Blocking call to the UI, asking it for the
+next input.  The returned value will either be a key-struct
+structure or a string.  If it's a string, it is either a keypress
+abbreviation with optional argument, or it's the numerical
+representation of a number."))
 
 (defgeneric ui-paint (ui)
   (:documentation "Ask the UI to repaint itself based on its new
@@ -132,6 +143,9 @@ settings."))
 (defmethod ui-set-display-mode ((ui ui-base) display-mode display-digits)
   (setf (slot-value ui 'display-mode) display-mode
         (slot-value ui 'display-digits) display-digits))
+
+(defmethod ui-set-complex-mode ((ui ui-base) how)
+  (setf (slot-value ui 'complex-mode) how))
 
 (defmethod ui-set-error-text ((ui ui-base) error-text)
   (unless error-text
@@ -154,3 +168,48 @@ settings."))
     (when (< stack-depth (array-dimension realpart 0))
       (setf (aref realpart stack-depth) real-part-string)
       (setf (aref imagpart stack-depth) imag-part-string))))
+
+(defmethod ui-clear-memory-contents ((ui ui-base))
+  (setf (slot-value ui 'memory-contents) nil))
+
+(defmethod ui-add-memory-value ((ui ui-base) precedence label
+                                real-part-string
+                                &optional imag-part-string)
+  (let ((new-entry (list precedence label
+                         real-part-string
+                         imag-part-string))
+        (contents (reverse (get-memory-contents ui)))
+        accum)
+
+    (dolist (entry contents)
+      (let ((e-prec (first entry)))
+        (when (and new-entry
+                   (>= precedence e-prec))
+          (push new-entry accum)
+          (setf new-entry nil))
+        (push entry accum)))
+    (when new-entry
+      (push new-entry accum))
+
+    (setf (slot-value ui 'memory-contents) accum)))
+
+(defmethod ui-clear-program-contents ((ui ui-base))
+  (setf (slot-value ui 'program-contents) nil))
+
+(defmethod ui-add-program-step ((ui ui-base) step-num display-string)
+  (let ((mem (get-program-contents ui)))
+    (unless mem
+      (setf mem (make-array (1+ step-num) :initial-element "" :adjustable t)))
+    (when (> step-num (array-dimension mem 0))
+      (adjust-array mem (1+ step-num) :initial-element ""))
+    (setf (aref mem step-num) display-string)
+    (setf (slot-value ui 'program-contents) mem)))
+
+(defmethod ui-get-program-step-string ((ui ui-base) step-num)
+  (let ((mem (get-program-contents ui)))
+    (when (< step-num (array-dimension mem 0))
+      (aref mem step-num))))
+
+(defmethod ui-set-program-counter ((ui ui-base) pc)
+  (setf (slot-value ui 'program-counter) pc))
+
