@@ -16,7 +16,9 @@
                       :depends-on ("stack" "modes" "display"))
                (:file "calc1"
                       :depends-on ("key-structs"))
+               (:file "ui")
                (:file "engine"
-                      :depends-on ("stack" "modes" "key-structs" "calc1"))))
+                      :depends-on ("stack" "modes" "key-structs"
+                                           "calc1" "ui"))))
                                            
            
