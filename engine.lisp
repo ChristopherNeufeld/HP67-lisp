@@ -173,3 +173,78 @@
       (if (stack-error-state stack)
           :ERROR
           :NORMAL-EXIT))))
+
+
+(defun run-engine (ui &key (stacksize 4))
+  (let* ((stack (get-new-stack-object stacksize))
+         (mode (get-new-mode-object))
+         (prev-active-mode nil)
+         (prev-complex-mode nil)
+         (prev-display-mode nil)
+         (prev-display-digits -1))
+
+    (do (quit-requested)
+        (quit-requested)
+
+      (let ((current-active-mode (modes-run/prog mode))
+            (current-complex-mode (modes-complex mode))
+            (current-error-text (stack-error-state stack))
+            (current-display-mode (modes-display-mode mode))
+            (current-display-digits (modes-digits mode)))
+
+        (unless (eq prev-active-mode current-active-mode)
+          (hp67-ui:ui-set-active-mode ui current-active-mode)
+          (hp67-ui:ui-set-active-keys ui (get-key-structs current-active-mode
+                                                          :limit-to-mode t))
+          (setf prev-active-mode current-active-mode))
+
+        (unless (and (eq current-display-mode prev-display-mode)
+                     (= current-display-digits prev-display-digits))
+          (hp67-ui:ui-set-display-mode ui current-display-mode current-display-digits)
+          (setf prev-display-mode current-display-mode
+                prev-display-digits current-display-digits))
+
+        (unless (eq prev-complex-mode current-complex-mode)
+          (hp67-ui:ui-set-complex-mode ui current-complex-mode)
+          (setf prev-complex-mode current-complex-mode))
+
+        (when current-error-text
+          (hp67-ui:ui-set-error-text ui current-error-text))
+
+        (let ((num-stack-to-pass (if (> stacksize 0)
+                                     stacksize
+                                     (length (stack-registers stack)))))
+
+          (hp67-ui:ui-clear-stack-contents ui num-stack-to-pass)
+          (dotimes (i num-stack-to-pass)
+            (let ((entry (nth i (stack-registers stack))))
+              (unless entry
+                (setf entry 0))
+              (hp67-ui:ui-add-stack-value ui i
+                                          (format-for-printing mode entry)))))
+
+        (let ((mem (stack-memory stack)))
+          (hp67-ui:ui-clear-memory-contents ui)
+          (dotimes (i (length mem))
+            (hp67-ui:ui-add-memory-value ui i
+                                         (car (nth i mem))
+                                         (format-for-printing mode (cdr (nth i mem))))))
+
+        (hp67-ui:ui-paint ui)
+        (let ((response (hp67-ui:ui-get-input ui)))
+          (setf quit-requested (hp67-ui:get-quit-requested ui))
+          (unless quit-requested
+            (etypecase response
+              (string
+               (when (string= response "")
+                 (setf response "enter"))
+               (handle-one-keypress response nil nil stack mode
+                                    :arg-is-num t))
+              (key-struct
+               (handle-one-keypress (key-struct-abbrev response)
+                                    nil nil stack mode
+                                    :arg-is-num nil)))))))))
+
+
+        
+        
