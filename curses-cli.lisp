@@ -11,8 +11,8 @@
                 :STACK-MEMORY
                 :STACK-ERROR-STATE
                 :GET-NEW-MODE-OBJECT
-                :GET-KEY-ABBREVS
-                :HANDLE-ONE-KEYPRESS
+                :GET-KEY-STRUCTS
+                :RUN-ENGINE
                 :KEY-STRUCT-ABBREV
                 :KEY-STRUCT-KEY-LOCATION
                 :FORMAT-FOR-PRINTING
@@ -83,7 +83,6 @@
                         :initform 0)
 
    (all-keys		:accessor get-all-keys)
-   (active-keys		:accessor get-active-keys)
 
    (button-rows		:accessor get-button-rows
                         :initform 0)
@@ -124,7 +123,7 @@ fills in the rest of the parameters appropriately."
     
     (setf (get-button-rows object) key-rows)
     (setf (get-button-width object) (1+ key-width))
-    (setf (get-keys-per-row object) (floor (get-cols object) key-width))
+    (setf (get-keys-per-row object) (floor (get-cols object) (1+ key-width)))
     (setf (get-all-keys object) all-keys)
 
     (setf (get-error-row object) (+ 2 key-rows))
@@ -135,58 +134,32 @@ fills in the rest of the parameters appropriately."
     (setf (get-stack-display-size object)
           (- (get-rows object) key-rows 6))
     (setf (get-stack-first-row object)
-          (+ key-rows 4))
+          (+ key-rows 3))
     (setf (get-stack-column object) 0)
 
     (setf (get-mem-display-size object)
           (- (get-rows object) key-rows 6))
     (setf (get-mem-first-row object)
-          (+ key-rows 4))
+          (+ key-rows 3))
     (setf (get-mem-label-column object) (floor (get-cols object) 2))
     (setf (get-mem-value-column object) (+ 2 *max-mem-label-length*
                                            (get-mem-label-column object)))))
     
 
-(defun main-2 ()
-  (charms:with-curses ()
-    (let* ((w charms:*standard-window*)
-           (dims (multiple-value-list (charms:window-dimensions w)))
-           (curses-obj
-            (make-instance 'curses-cli
-                           :window w
-                           :rows (second dims)
-                           :cols (first dims)))
-
-           (all-keys (get-key-abbrevs nil
-                                      :sort-fcn #'comp<
-                                      :veto-list *excluded-keys*))
-           (maxlen (apply 'max
-                          (mapcar 'length all-keys))))
-
-      (fill-in-parameters curses-obj all-keys maxlen)))
-
-  (error "continue"))
-
-
-(defmethod hp67-ui:ui-set-active-mode :after ((ui curses-cli) active-mode)
-  (setf (get-active-keys ui)
-        (get-key-abbrevs active-mode
-                         :sort-fcn #'comp<
-                         :veto-list *excluded-keys*
-                         :limit-to-mode t)))
-
 (defmethod hp67-ui:ui-paint ((ui curses-cli))
   (charms:clear-window (get-window ui))
   (let ((i 0))
     (dolist (candidate (get-all-keys ui))
-      (when (member candidate (get-active-keys ui)
+      (when (member (key-struct-abbrev candidate) (get-active-keys ui)
+                    :key 'key-struct-abbrev
                     :test 'string=)
         (multiple-value-bind (r c)
             (floor i (get-keys-per-row ui))
           (charms:move-cursor (get-window ui)
                               (* c (get-button-width ui))
                               r))
-        (charms:write-string-at-cursor (get-window ui) candidate))
+        (charms:write-string-at-cursor (get-window ui)
+                                       (key-struct-abbrev candidate)))
       (incf i)))
 
   (when (ui-has-error-text ui)
@@ -218,12 +191,13 @@ fills in the rest of the parameters appropriately."
     (dotimes (i n-entries)
       (let ((display-row (- (+ (get-mem-first-row ui)
                                (get-mem-display-size ui))
-                            (1+ i))))
+                            (1+ i)))
+            (entry (nth i mem-contents)))
       (when (< i (get-mem-display-size ui))
         (charms:move-cursor (get-window ui)
                             (get-mem-label-column ui)
                             display-row)
-        (let ((label (copy-seq (second (aref mem-contents i)))))
+        (let ((label (copy-seq (second entry))))
           (when (> (length label) *max-mem-label-length*)
             (setf label (subseq label 0 *max-mem-label-length*)))
           (charms:write-string-at-cursor (get-window ui) label))
@@ -232,10 +206,10 @@ fills in the rest of the parameters appropriately."
                             (get-mem-value-column ui)
                             display-row)
         (charms:write-string-at-cursor (get-window ui)
-                                       (third (aref mem-contents i)))))))
+                                       (third entry))))))
 
   (charms:move-cursor (get-window ui) (get-input-col ui) (get-input-row ui))
-  (charms:refresh-window))
+  (charms:refresh-window (get-window ui)))
   
 
 (defmethod hp67-ui:ui-get-input ((ui curses-cli))
@@ -243,7 +217,8 @@ fills in the rest of the parameters appropriately."
         (pos 0))
     (do ((c (charms:get-char (get-window ui))
             (charms:get-char (get-window ui))))
-        ((char= c #\Newline))
+        ((or (char= c #\Newline)
+             (>= pos (get-cols ui))))
       (cond
         ((rubout-character c)
          (when (> pos 0)
@@ -254,11 +229,14 @@ fills in the rest of the parameters appropriately."
            (charms:write-string-at-cursor (get-window ui) " ")
            (decf pos)
            (charms:move-cursor (get-window ui) pos (get-input-row ui))))
-        ((quit-character c)
-         (setf (get-quit-requested ui) t))
+        ((and (= pos 0) (quit-character c))
+         (setf (get-quit-requested ui) t)
+         (return-from ui-get-input ""))
         ((allowed-character c)
          (adjust-array output (1+ pos))
          (setf (aref output pos) c)
+         (charms:move-cursor (get-window ui) pos (get-input-row ui))
+         (charms:write-string-at-cursor (get-window ui) (format nil "~C" c))
          (incf pos)))
 
       (when (and (= pos 1)
@@ -276,7 +254,6 @@ fills in the rest of the parameters appropriately."
   (let ((c-num (char-int c)))
     (or (char= c #\Newline)
         (char= c #\Space)
-        (= c-num 4)
         (<= 32 c-num 127))))
 
 #+sbcl
@@ -331,110 +308,30 @@ fills in the rest of the parameters appropriately."
                 (key-struct-abbrev key2))))))
 
 
-        
-(defun main()
+(defun main ()
   (charms:with-curses ()
-    (let ((w charms:*standard-window*)
-          n-rows n-cols)
+    (let* ((w charms:*standard-window*)
+           (dims (multiple-value-list (charms:window-dimensions w)))
+           (curses-obj
+            (make-instance 'curses-cli
+                           :window w
+                           :rows (second dims)
+                           :cols (first dims)))
 
-      (multiple-value-setq
-          (n-cols n-rows)
-        (charms:window-dimensions w))
+           (all-keys (get-key-structs nil
+                                      :sort-fcn #'comp<
+                                      :veto-list *excluded-keys*))
+           (maxlen (apply 'max
+                          (mapcar #'(lambda (x)
+                                      (length
+                                       (key-struct-abbrev x)))
+                                  all-keys))))
 
-      (macrolet
-          ((wsc (ostring)
-             `(charms:write-string-at-cursor w ,ostring)))
-        
-        (charms:enable-echoing)
-        (charms:enable-extra-keys w)
-        (charms:disable-non-blocking-mode w)
-        (charms:enable-raw-input)
+      (charms:disable-echoing)
+      (charms:enable-extra-keys w)
+      (charms:disable-non-blocking-mode w)
+      (charms:enable-raw-input)
 
-        (let* ((stack (get-new-stack-object 4))
-               (mode (get-new-mode-object))
-               (all-keys (get-key-abbrevs mode
-                                          :sort-fcn #'comp<
-                                          :veto-list *excluded-keys*))
-               (maxlen (apply 'max
-                              (mapcar 'length all-keys)))
-               (keys-per-row (floor (/ n-cols (1+ maxlen))))
-               (key-rows (1+ (floor (/ (length all-keys)
-                                       keys-per-row)))))
+      (fill-in-parameters curses-obj all-keys maxlen)
 
-          (do (exit-requested)
-              (exit-requested)
-
-            (charms:clear-window w)
-
-            (let ((active-keys (get-key-abbrevs mode
-                                                :sort-fcn #'comp<
-                                                :veto-list *excluded-keys*
-                                                :limit-to-mode t))
-                  (i 0)
-                  (accumulator (make-string-output-stream)))
-
-              (dolist (candidate all-keys)
-                (when (member candidate active-keys
-                              :test 'string=)
-                  (multiple-value-bind (r c)
-                      (floor i keys-per-row)
-                    (charms:move-cursor w (* c (1+ maxlen)) r))
-                  (wsc candidate))
-                (incf i))
-
-              (when (stack-error-state stack)
-                (charms:move-cursor w 0 (+ 2 key-rows))
-                (wsc (format nil "~A" (stack-error-state stack))))
-
-              (dotimes (j 4)
-                (let ((entry (nth j (stack-registers stack))))
-                  (when entry
-                    (charms:move-cursor w 0 (- n-rows j 4))
-                    (if (and (= j 0) (stack-error-state stack))
-                        (wsc "<<<ERROR>>>")
-                        (wsc (format-for-printing mode entry))))))
-
-              (dotimes (j 4)
-                (let ((entry (nth j (stack-memory stack))))
-                  (when entry
-                    (charms:move-cursor w 20 (- n-rows j 4))
-                    (wsc (format nil "~A  ~A"
-                                 (car entry)
-                                 (format-for-printing mode (cdr entry)))))))
-              
-              (charms:move-cursor w 0 (- n-rows 2))
-
-              (charms:refresh-window w)
-
-              (do ((pos 0)
-                   (c (charms:get-char w) (charms:get-char w)))
-                  ((char= c #\Newline))
-
-                (cond
-                  ((rubout-character c)
-                   (when (> pos 0)
-                     (let ((contents (get-output-stream-string accumulator)))
-                       (format accumulator
-                               "~A"
-                               (subseq contents
-                                       0
-                                       (- (length contents) 1))))
-                     (charms:move-cursor w (1- pos) (- n-rows 2))
-                     (wsc " ")
-                     (decf pos)
-                     (charms:move-cursor w pos (- n-rows 2))))
-                  ((quit-character c)
-                   (return-from main))
-                  ((allowed-character c)
-                   (format accumulator "~C" c)
-                   (incf pos)))
-
-                (when (and (= pos 1)
-                           (member c *hot-keys* :test 'char=))
-                  (return)))
-
-              (let ((result (get-output-stream-string accumulator)))
-                (handle-one-keypress result nil nil stack mode
-                                     :arg-is-num t))))
-
-              )))))
+      (run-engine curses-obj))))
