@@ -121,7 +121,8 @@
     
     (push ks keys))
 
-  (defun get-key-abbrevs (mode &key sort-fcn veto-list limit-to-mode)
+
+  (defun get-key-structs (mode &key sort-fcn veto-list limit-to-mode)
     (let ((all-keys (copy-list (get-keys))))
       (when sort-fcn
         (setf all-keys (sort all-keys sort-fcn)))
@@ -140,10 +141,17 @@
                      (not (or (not ksam)
                               (member mode ksam)))))
                all-keys)))
+      all-keys))
+    
 
+  (defun get-key-abbrevs (mode &key sort-fcn veto-list limit-to-mode)
       (remove-duplicates
-       (mapcar #'key-struct-abbrev all-keys)
-       :test 'string=)))
+       (mapcar #'key-struct-abbrev
+               (get-key-structs mode
+                                :sort-fcn sort-fcn
+                                :veto-list veto-list
+                                :limit-to-mode limit-to-mode))
+       :test 'string=))
                         
 
   (defun get-compound-keys ()
