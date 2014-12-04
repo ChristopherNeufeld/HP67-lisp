@@ -3,6 +3,15 @@
 (defpackage :HP67-UI
   (:use :COMMON-LISP)
   (:export :UI-BASE :UI-SET-ACTIVE-MODE :UI-PAINT :UI-GET-INPUT
+           :UI-SET-ACTIVE-KEYS
+           :UI-SET-DISPLAY-MODE
+           :UI-SET-COMPLEX-MODE
+           :UI-SET-ERROR-TEXT
+           :UI-CLEAR-STACK-CONTENTS
+           :UI-ADD-STACK-VALUE
+           :UI-CLEAR-MEMORY-CONTENTS
+           :UI-ADD-MEMORY-VALUE
+           :GET-QUIT-REQUESTED
    ))
 
 (in-package :HP67-UI)
