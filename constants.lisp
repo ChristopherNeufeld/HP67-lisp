@@ -14,6 +14,7 @@
            :KEY-STRUCT-KEY-LOCATION
            :LOCATION-CATEGORY-1 :LOCATION-CATEGORY-2
            :LOCATION-COL :LOCATION-ROW :LOCATION-NARROW-KEY
+           :GET-KEY-STRUCTS
 
            ;; display.lisp
            :FORMAT-FOR-PRINTING
