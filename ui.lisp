@@ -3,6 +3,7 @@
 (defpackage :HP67-UI
   (:use :COMMON-LISP)
   (:export :UI-BASE :UI-SET-ACTIVE-MODE :UI-PAINT :UI-GET-INPUT
+           :UI-GET-ARGUMENT
            :UI-SET-ACTIVE-KEYS
            :UI-SET-DISPLAY-MODE
            :UI-SET-COMPLEX-MODE
@@ -133,6 +134,10 @@ next input.  The returned value will either be a key-struct
 structure or a string.  If it's a string, it is either a keypress
 abbreviation with optional argument, or it's the numerical
 representation of a number."))
+
+(defgeneric ui-get-argument (ui prompt)
+  (:documentation "Blocking call to the UI, asking it to supply a
+missing argument for a command, as described by the prompt."))
 
 (defgeneric ui-paint (ui)
   (:documentation "Ask the UI to repaint itself based on its new
