@@ -142,7 +142,9 @@
 
       (when (and (key-struct-takes-arg key)
                  (not arg))
-        (setf arg (funcall fetch-argument-closure abbrev))
+        (setf arg (funcall fetch-argument-closure
+                           (format nil "Supply argument for ~S"
+                                   abbrev)))
         (unless arg
           (return-from handle-one-keypress :MISSING-ARGUMENT)))
 
@@ -155,7 +157,8 @@
                      (string= arg (second ck)))
             (setf key k)
             (setf arg (funcall fetch-argument-closure
-                               (key-struct-abbrev key)))
+                               (format nil "Supply argument for ~S"
+                               (key-struct-abbrev key))))
             (unless arg
               (return-from handle-one-keypress :MISSING-ARGUMENT))
             (return))))
@@ -238,11 +241,16 @@
               (string
                (when (string= response "")
                  (setf response "enter"))
-               (handle-one-keypress response nil nil stack mode
+               (handle-one-keypress response
+                                    #'(lambda (x)
+                                        (hp67-ui:ui-get-argument ui x))
+                                    nil stack mode
                                     :arg-is-num t))
               (key-struct
                (handle-one-keypress (key-struct-abbrev response)
-                                    nil nil stack mode
+                                    #'(lambda (x)
+                                        (hp67-ui:ui-get-argument ui x))
+                                    nil stack mode
                                     :arg-is-num nil)))))))))
 
 
