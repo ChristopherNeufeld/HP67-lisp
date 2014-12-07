@@ -212,30 +212,37 @@ fills in the rest of the parameters appropriately."
   (charms:refresh-window (get-window ui)))
   
 
-(defmethod hp67-ui:ui-get-input ((ui curses-cli))
+(defun get-text (ui row &optional (col 0))
   (let ((output (make-array 0 :element-type 'character :adjustable t))
         (pos 0))
+    (charms:move-cursor (get-window ui) col row)
+    (charms:clear-line-after-cursor (get-window ui))
     (do ((c (charms:get-char (get-window ui))
             (charms:get-char (get-window ui))))
         ((or (char= c #\Newline)
-             (>= pos (get-cols ui))))
+             (>= (+ col pos) (get-cols ui))))
+      (charms:refresh-window (get-window ui))
       (cond
         ((rubout-character c)
          (when (> pos 0)
            (adjust-array output (1- pos))
            (charms:move-cursor (get-window ui)
-                               (1- pos)
-                               (get-input-row ui))
+                               (+ col (1- pos))
+                               row)
            (charms:write-string-at-cursor (get-window ui) " ")
            (decf pos)
-           (charms:move-cursor (get-window ui) pos (get-input-row ui))))
+           (charms:move-cursor (get-window ui)
+                               (+ col pos)
+                               row)))
         ((and (= pos 0) (quit-character c))
          (setf (get-quit-requested ui) t)
-         (return-from ui-get-input ""))
+         (return-from get-text ""))
         ((allowed-character c)
          (adjust-array output (1+ pos))
          (setf (aref output pos) c)
-         (charms:move-cursor (get-window ui) pos (get-input-row ui))
+         (charms:move-cursor (get-window ui)
+                             (+ col pos)
+                             row)
          (charms:write-string-at-cursor (get-window ui) (format nil "~C" c))
          (incf pos)))
 
@@ -244,10 +251,20 @@ fills in the rest of the parameters appropriately."
         (return)))
 
     output))
+
+
+
+(defmethod hp67-ui:ui-get-input ((ui curses-cli))
+  (get-text ui (get-input-row ui)))
         
+(defmethod hp67-ui:ui-get-argument ((ui curses-cli) prompt)
+  (let ((plen (length prompt)))
+    (charms:move-cursor (get-window ui) 0 (get-input-row ui))
+    (charms:clear-line-after-cursor (get-window ui))
+    (charms:write-string-at-cursor (get-window ui) prompt)
+    (get-text ui (get-input-row ui) (+ 2 plen))))
+
   
-
-
 
 #+sbcl
 (defun allowed-character (c)
