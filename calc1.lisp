@@ -1121,7 +1121,7 @@
                 :row 6
                 :col 4
                 :shift :G-BLUE
-                :category-1 :TRIGNOMETRY
+                :category-1 :TRIGONOMETRY
                 :category-2 :INVERSE-TRIG)
                :abbreviation "atan" 
                :rational-safe nil
