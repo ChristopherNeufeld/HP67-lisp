@@ -144,6 +144,7 @@
                 :row 2
                 :col 2
                 :category-1 :FLOW-CONTROL)
+               :modelist (:PROGRAM-EXECUTION)
                :takes-argument t
                :updates-last-x nil
                :implicit-x nil
@@ -161,6 +162,35 @@
        :RETCODE <- (list :GOTO (subseq "ABCDE" (- ival 10) (- ival 9))))
       ((and ival (<= 15 ival 19))
        :RETCODE <- (list :GOTO (subseq "abcde" (- ival 10) (- ival 9))))
+      (t
+       :RETCODE <- (list :GOTO ARG)))))
+
+
+(define-op-key
+    (:location (make-location
+                :row 2
+                :col 2
+                :category-1 :FLOW-CONTROL)
+               :modelist (:PROGRAMMING-MODE :RUN-MODE)
+               :takes-argument t
+               :updates-last-x nil
+               :implicit-x nil
+               :abbreviation "goto"
+               :documentation "Branches to location specified")
+  (let (ival)
+    (when (string-equal ARG "(i)")
+      (setf ival (floor (recall-mem "(i)"))))
+    (cond
+      ((< ival 0)
+       :RETCODE <- (list :GOTO (format nil "~D" ival)))  ;; jump back
+      ((and ival (<= 0 ival 9))
+       :RETCODE <- (list :GOTO (format nil "~D" ival)))
+      ((and ival (<= 10 ival 14))
+       :RETCODE <- (list :GOTO (subseq "ABCDE" (- ival 10) (- ival 9))))
+      ((and ival (<= 15 ival 19))
+       :RETCODE <- (list :GOTO (subseq "abcde" (- ival 10) (- ival 9))))
+      ((char= (char ARG 0) #\.)
+       :RETCODE <- (list :GOTO (parse-integer (subseq ARG 1))))
       (t
        :RETCODE <- (list :GOTO ARG)))))
 
