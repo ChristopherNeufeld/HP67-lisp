@@ -110,9 +110,17 @@
                           all-keys)))))
 
       ;; Simple case when entire numbers might be sent in by the UI
-      (when arg-is-num
-        (when (and (string-may-contain-number abbrev)
-                   (numberp (read-from-string abbrev)))
+      (when (and arg-is-num (string-may-contain-number abbrev))
+        ;; first, convert to a double representation if necessary
+        (let ((d-pos (position #\d abbrev :test 'char-equal))
+              (e-pos (position #\e abbrev :test 'char-equal)))
+          (cond
+            (e-pos
+             (setf (char abbrev e-pos) #\d))
+            ((not d-pos)
+             (setf abbrev (format nil "~Ad0" abbrev)))))
+
+        (when (numberp (read-from-string abbrev))
           (push-stack stack
                       (convert-string-rep-to-rational abbrev)
                       :RATIONAL)
