@@ -16,6 +16,7 @@
    :ROPE-LENGTH
    :INSERT-OBJECT
    :DELETE-OBJECT
+   :RETRIEVE-OBJECT
    :APPEND-OBJECT
    :ITERATE-OVER-CONTENTS
    :GET-FULL-CONTENTS
@@ -54,6 +55,16 @@
     (worker (rope-root-node rope))))
 
 
+(defun retrieve-object (rope index)
+  "Returns the object at 'index' in 'rope'.  Second value is nil
+   if an error occurs."
+  (when (and rope
+             (<= 0 index (1- (rope-length rope))))
+    (multiple-value-bind (node offset)
+        (locate-node (rope-root-node rope) index)
+      (values (aref (node-contents node) offset) t))))
+
+
 (defun insert-object (rope index object)
   "Attempts to insert the object into the rope, so that the
    object is at offset 'index'.  The 'index' object, and all
@@ -64,11 +75,14 @@
 
   (unless (and rope (integerp index) (>= index 0))
     (return-from insert-object (values nil nil)))
-  
-  (when (= index (1+ (rope-length rope)))
-    (append-object rope object)
-    (return-from insert-object
-      (values object t)))
+
+  (let ((rlen (rope-length rope)))
+    (when (= index (1+ rlen))
+      (append-object rope object)
+      (return-from insert-object
+        (values object t)))
+    (when (> index (1+ rlen))
+      (return-from insert-object (values nil nil))))
 
   (multiple-value-bind
         (before after)
