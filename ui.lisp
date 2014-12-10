@@ -12,6 +12,9 @@
            :UI-ADD-STACK-VALUE
            :UI-CLEAR-MEMORY-CONTENTS
            :UI-ADD-MEMORY-VALUE
+           :UI-CLEAR-PROGRAM-CONTENTS
+           :UI-SET-PROGRAM-COUNTER
+           :UI-ADD-PROGRAM-STEP
            :GET-QUIT-REQUESTED
    ))
 
@@ -112,7 +115,7 @@ setting up for a paint."))
 (defgeneric ui-clear-program-contents (ui)
   (:documentation "Erase the UI's knowledge of program memory.
 The engine will normally not call this unless program steps have
-been deleted."))
+been added/deleted."))
 
 (defgeneric ui-add-program-step (ui step-num display-string)
   (:documentation "Inform the UI of the contents of a single step
