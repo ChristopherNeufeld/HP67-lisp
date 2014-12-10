@@ -72,7 +72,7 @@
                             fetch-argument-closure
                             check-for-interrupt-closure
                             stack mode
-                            &key arg-is-num)
+                            &key arg-is-num (next-program-step -1))
 
   (declare (ignorable check-for-interrupt-closure))
 
@@ -92,6 +92,7 @@
                    :RUN-MODE-NO-PROG))))
 
     (let* ((current-mode (modes-run/prog mode))
+           (programming (eq current-mode :PROGRAMMING-MODE))
            (all-keys (get-keys))
            (tokenized (tokenize key-string))
            (abbrev (first tokenized))
@@ -121,9 +122,11 @@
              (setf abbrev (format nil "~Ad0" abbrev)))))
 
         (when (numberp (read-from-string abbrev))
-          (push-stack stack
-                      (convert-string-rep-to-rational abbrev)
-                      :RATIONAL)
+          (if programming
+              (store-program-step stack next-program-step abbrev)
+              (push-stack stack
+                          (convert-string-rep-to-rational abbrev)
+                          :RATIONAL))
           (return-from handle-one-keypress :NORMAL-EXIT)))
 
       ;; If we get here, it's a key press.
@@ -173,13 +176,21 @@
 
       (when (or (not (stack-error-state stack))
                 (key-struct-can-clear-errors key))
-        
-        
-        (if (key-struct-takes-arg key)
-            (funcall (key-struct-run-mode-fcn key)
-                     stack mode arg)
-            (funcall (key-struct-run-mode-fcn key)
-                     stack mode)))
+
+        (cond
+          (programming
+           (when arg
+             (setf arg (format nil " ~A" arg)))
+           (let ((ptext (format nil "~A~A"
+                                (key-struct-abbrev key)
+                                arg)))
+             (store-program-step stack next-program-step ptext)))
+          ((key-struct-takes-arg key)
+           (funcall (key-struct-run-mode-fcn key)
+                    stack mode arg))
+          (t
+           (funcall (key-struct-run-mode-fcn key)
+                    stack mode))))
 
       (if (stack-error-state stack)
           :ERROR
@@ -189,10 +200,13 @@
 (defun run-engine (ui &key (stacksize 4))
   (let* ((stack (get-new-stack-object stacksize))
          (mode (get-new-mode-object))
+         (programming (eq (modes-run/prog mode)
+                          :PROGRAMMING-MODE))
          (prev-active-mode nil)
          (prev-complex-mode nil)
          (prev-display-mode nil)
-         (prev-display-digits -1))
+         (prev-display-digits -1)
+         (next-program-step 1))
 
     (do (quit-requested)
         (quit-requested)
@@ -241,6 +255,15 @@
                                          (car (nth i mem))
                                          (format-for-printing mode (cdr (nth i mem))))))
 
+        (when programming
+          (hp67-ui:ui-clear-program-contents ui)
+          (let ((n-steps (get-num-program-steps stack)))
+            (dotimes (i n-steps)
+              (hp67-ui:ui-add-program-step ui (1+ i)
+                                           (retrieve-program-step stack (1+ i)))))
+          (hp67-ui:ui-set-program-counter ui next-program-step))
+
+
         (hp67-ui:ui-paint ui)
         (let ((response (hp67-ui:ui-get-input ui)))
           (setf quit-requested (hp67-ui:get-quit-requested ui))
@@ -253,13 +276,17 @@
                                     #'(lambda (x)
                                         (hp67-ui:ui-get-argument ui x))
                                     nil stack mode
-                                    :arg-is-num t))
+                                    :arg-is-num t
+                                    :next-program-step next-program-step))
               (key-struct
                (handle-one-keypress (key-struct-abbrev response)
                                     #'(lambda (x)
                                         (hp67-ui:ui-get-argument ui x))
                                     nil stack mode
-                                    :arg-is-num nil)))))))))
+                                    :arg-is-num nil
+                                    :next-program-step next-program-step)))
+            (when programming
+              (incf next-program-step))))))))
 
 
         
