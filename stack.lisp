@@ -227,6 +227,33 @@
   (clear-all-flags stack))
 
 
+(defun store-program-step (stack index command-string)
+  "Stores the string in program memory at offset 'index'.  As a
+   special case, if index is -1, it appends."
+  (unless (stack-program-memory stack)
+    (setf (stack-program-memory stack) (hp67-ropes:make-rope))
+    ;; program step 0 is unassigned
+    (hp67-ropes:append-object (stack-program-memory stack) nil))
+  (when (= index -1)
+    (setf index
+          (hp67-ropes:rope-length (stack-program-memory stack))))
+  
+  (multiple-value-bind (unused success)
+      (hp67-ropes:insert-object (stack-program-memory stack)
+                                index
+                                command-string)
+    (declare (ignore unused))
+    success))
+
+
+(defun retrieve-program-step (stack index)
+  (hp67-ropes:retrieve-object (stack-program-memory stack) index))
+
+(defun get-num-program-steps (stack)
+  "Remember, steps number from 1."
+  (1- (hp67-ropes:rope-length (stack-program-memory stack))))
+
+
 (defun canonicalize-memory-name (stack mem-name)
   (when (integerp mem-name)
     (setf mem-name (format nil "~D" mem-name)))
