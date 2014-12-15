@@ -41,10 +41,10 @@
                         :initform nil)
    (memory-contents	:reader get-memory-contents
                         :initform nil)
-   (program-contents	:reader get-program-contents
+   (program-contents	:accessor get-program-contents
                         :initform nil)
    (program-counter	:reader get-program-counter
-                        :initform nil)
+                        :initform 1)
 
    (quit-requested	:accessor get-quit-requested
                         :initform nil)))
@@ -217,10 +217,11 @@ settings."))
   (let ((mem (get-program-contents ui)))
     (unless mem
       (setf mem (make-array (1+ step-num) :initial-element "" :adjustable t)))
-    (when (> step-num (array-dimension mem 0))
-      (adjust-array mem (1+ step-num) :initial-element ""))
+    (when (>= step-num (array-dimension mem 0))
+      (setf (get-program-contents ui) (adjust-array mem (1+ step-num) :initial-element "")))
     (setf (aref mem step-num) display-string)
     (setf (slot-value ui 'program-contents) mem)))
+
 
 (defmethod ui-get-program-step-string ((ui ui-base) step-num)
   (let ((mem (get-program-contents ui)))
