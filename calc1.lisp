@@ -1717,3 +1717,16 @@
     (store-mem ARG prev)
     X <- X))
 
+
+;; Now, some keys that aren't on the calculator:
+(define-op-key
+    (:location (make-location
+                :row -1
+                :col -1
+                :category-1 :PROGRAM-MEMORY)
+               :modelist (:RUN-MODE :RUN-MODE-NO-PROG)
+               :updates-last-x nil
+               :abbreviation "prog"
+               :implicit-x nil
+               :documentation "Enters programming mode")
+  (set-runprog-mode :PROGRAMMING-MODE))
