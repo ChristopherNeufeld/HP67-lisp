@@ -46,7 +46,6 @@
 (in-package :CURSES-CLI)
 
 
-
 (defparameter *excluded-keys*
   '("0" "1" "2" "3" "4"
     "5" "6" "7" "8" "9"
@@ -109,6 +108,10 @@
    (mem-value-col	:accessor get-mem-value-column
                         :initform (+ 2 *max-mem-label-length*))
 
+   (prog-disp-size	:accessor get-prog-display-size
+                        :initform 0)
+   (prog-disp-row-1	:accessor get-prog-first-row)
+
    (input-row		:accessor get-input-row
                         :initform 0)
    (input-col		:accessor get-input-col
@@ -117,7 +120,7 @@
 
 (defun fill-in-parameters (object all-keys key-width)
   "Given a curses-cli object with window, rows, and columns set,
-fills in the rest of the parameters appropriately."
+   fills in the rest of the parameters appropriately."
   (let* ((num-keys (length all-keys))
          (key-rows (1+ (floor num-keys (1+ key-width)))))
     
@@ -143,7 +146,10 @@ fills in the rest of the parameters appropriately."
           (+ key-rows 3))
     (setf (get-mem-label-column object) (floor (get-cols object) 2))
     (setf (get-mem-value-column object) (+ 2 *max-mem-label-length*
-                                           (get-mem-label-column object)))))
+                                           (get-mem-label-column object)))
+
+    (setf (get-prog-display-size object) (- (get-rows object) key-rows 6)
+          (get-prog-first-row object) (+ key-rows 3))))
     
 
 (defmethod hp67-ui:ui-paint ((ui curses-cli))
@@ -167,46 +173,66 @@ fills in the rest of the parameters appropriately."
     (charms:write-string-at-cursor (get-window ui)
                                    (get-error-text ui)))
 
-  (when (get-complex-mode ui)
-    (error "Have to write complex stack output code."))
+  (ecase (get-active-mode ui)
+    ((:RUN-MODE :RUN-MODE-NO-PROG :NUMERIC-INPUT)
+     
+     (when (get-complex-mode ui)
+       (error "Have to write complex stack output code."))
 
-  (let* ((stack-contents (get-stack-real-contents ui))
-         (n-entries (array-dimension stack-contents 0)))
-    (dotimes (i n-entries)
-      (let ((display-row (- (+ (get-stack-first-row ui)
-                               (get-stack-display-size ui))
-                            (1+ i))))
-      (when (< i (get-stack-display-size ui))
-        (charms:move-cursor (get-window ui)
-                            (get-stack-column ui)
-                            display-row)
-        (charms:write-string-at-cursor (get-window ui)
-                                       (aref stack-contents i))))))
-  
-  (when (get-complex-mode ui)
-    (error "Have to write complex memory output code."))
+     (let* ((stack-contents (get-stack-real-contents ui))
+            (n-entries (array-dimension stack-contents 0)))
+       (dotimes (i n-entries)
+         (let ((display-row (- (+ (get-stack-first-row ui)
+                                  (get-stack-display-size ui))
+                               (1+ i))))
+           (when (< i (get-stack-display-size ui))
+             (charms:move-cursor (get-window ui)
+                                 (get-stack-column ui)
+                                 display-row)
+             (charms:write-string-at-cursor (get-window ui)
+                                            (aref stack-contents i))))))
+     
+     (when (get-complex-mode ui)
+       (error "Have to write complex memory output code."))
 
-  (let* ((mem-contents (get-memory-contents ui))
-         (n-entries (length mem-contents)))
-    (dotimes (i n-entries)
-      (let ((display-row (- (+ (get-mem-first-row ui)
-                               (get-mem-display-size ui))
-                            (1+ i)))
-            (entry (nth i mem-contents)))
-      (when (< i (get-mem-display-size ui))
-        (charms:move-cursor (get-window ui)
-                            (get-mem-label-column ui)
-                            display-row)
-        (let ((label (copy-seq (second entry))))
-          (when (> (length label) *max-mem-label-length*)
-            (setf label (subseq label 0 *max-mem-label-length*)))
-          (charms:write-string-at-cursor (get-window ui) label))
+     (let* ((mem-contents (get-memory-contents ui))
+            (n-entries (length mem-contents)))
+       (dotimes (i n-entries)
+         (let ((display-row (- (+ (get-mem-first-row ui)
+                                  (get-mem-display-size ui))
+                               (1+ i)))
+               (entry (nth i mem-contents)))
+           (when (< i (get-mem-display-size ui))
+             (charms:move-cursor (get-window ui)
+                                 (get-mem-label-column ui)
+                                 display-row)
+             (let ((label (copy-seq (second entry))))
+               (when (> (length label) *max-mem-label-length*)
+                 (setf label (subseq label 0 *max-mem-label-length*)))
+               (charms:write-string-at-cursor (get-window ui) label))
 
-        (charms:move-cursor (get-window ui)
-                            (get-mem-value-column ui)
-                            display-row)
-        (charms:write-string-at-cursor (get-window ui)
-                                       (third entry))))))
+             (charms:move-cursor (get-window ui)
+                                 (get-mem-value-column ui)
+                                 display-row)
+             (charms:write-string-at-cursor (get-window ui)
+                                            (third entry)))))))
+    (:PROGRAMMING-MODE
+     (let* ((prog-contents (get-program-contents ui))
+            (n-entries (length prog-contents))
+            (pc (get-program-counter ui))
+            (min-row (get-prog-first-row ui)))
+
+       (dotimes (i (get-prog-display-size ui))
+         (let ((step-num (+ pc i (- (get-prog-display-size ui)))))
+           (when (< 0 step-num (1+ n-entries))
+             (charms:move-cursor (get-window ui) 0 (+ min-row i))
+             (charms:write-string-at-cursor (get-window ui)
+                                            (format nil "~3,'0D  " step-num))
+             (charms:write-string-at-cursor (get-window ui)
+                                            (aref prog-contents step-num))
+             (when (= i pc)
+               (charms:write-string-at-cursor (get-window ui)
+                                              "    <<<"))))))))
 
   (charms:move-cursor (get-window ui) (get-input-col ui) (get-input-row ui))
   (charms:refresh-window (get-window ui)))
