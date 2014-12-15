@@ -331,6 +331,9 @@
               (get-last-x ()
                 `(retrieve-last-x-value ,',stack-var))
 
+              (set-runprog-mode (how)
+                `(setf (modes-run/prog ,',state-var) ,how))
+
               (round-to-display-precision (num)
                 `(convert-string-rep-to-rational
                   (format-for-printing ,',state-var ,num)))
