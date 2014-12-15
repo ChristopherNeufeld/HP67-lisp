@@ -179,8 +179,10 @@
 
         (cond
           (programming
-           (when arg
-             (setf arg (format nil " ~A" arg)))
+           (setf arg
+                 (if arg
+                     (format nil " ~A" arg)
+                     ""))
            (let ((ptext (format nil "~A~A"
                                 (key-struct-abbrev key)
                                 arg)))
@@ -200,8 +202,7 @@
 (defun run-engine (ui &key (stacksize 4))
   (let* ((stack (get-new-stack-object stacksize))
          (mode (get-new-mode-object))
-         (programming (eq (modes-run/prog mode)
-                          :PROGRAMMING-MODE))
+         programming
          (prev-active-mode nil)
          (prev-complex-mode nil)
          (prev-display-mode nil)
@@ -211,6 +212,9 @@
     (do (quit-requested)
         (quit-requested)
 
+      (setf programming (eq (modes-run/prog mode)
+                            :PROGRAMMING-MODE))
+      
       (let ((current-active-mode (modes-run/prog mode))
             (current-complex-mode (modes-complex mode))
             (current-error-text (stack-error-state stack))
