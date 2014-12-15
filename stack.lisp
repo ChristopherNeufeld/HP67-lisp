@@ -251,8 +251,10 @@
 
 (defun get-num-program-steps (stack)
   "Remember, steps number from 1."
-  (1- (hp67-ropes:rope-length (stack-program-memory stack))))
-
+  (let ((spm (stack-program-memory stack)))
+    (if spm
+        (1- (hp67-ropes:rope-length spm))
+        0)))
 
 (defun canonicalize-memory-name (stack mem-name)
   (when (integerp mem-name)
