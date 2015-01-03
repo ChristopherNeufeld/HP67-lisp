@@ -27,5 +27,10 @@
 (defparameter *overflow-exponent* 99)  ;; larger than this, and
                                        ;; there's an error
 
+(defparameter *debug-stack* '())  ;; use this to push things onto an
+                                  ;; examination stack for later
+                                  ;; perusal (ncurses really messes up
+                                  ;; the screen for bread-crumb
+                                  ;; debugging or backtraces)
 
 
