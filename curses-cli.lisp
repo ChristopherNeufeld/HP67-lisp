@@ -223,14 +223,14 @@
             (min-row (get-prog-first-row ui)))
 
        (dotimes (i (get-prog-display-size ui))
-         (let ((step-num (+ pc i (- (get-prog-display-size ui)))))
-           (when (< 0 step-num (1+ n-entries))
+         (let ((step-num (+ pc i 2 (- (get-prog-display-size ui)))))
+           (when (< 0 step-num n-entries)
              (charms:move-cursor (get-window ui) 0 (+ min-row i))
              (charms:write-string-at-cursor (get-window ui)
                                             (format nil "~3,'0D  " step-num))
              (charms:write-string-at-cursor (get-window ui)
                                             (aref prog-contents step-num))
-             (when (= i pc)
+             (when (= step-num pc)
                (charms:write-string-at-cursor (get-window ui)
                                               "    <<<"))))))))
 
