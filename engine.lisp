@@ -68,6 +68,7 @@
 ;; Returns :MISSING-ARGUMENT if no argument was found when needed
 ;; Returns :ERROR if there is an error state
 ;; Returns :NORMAL-EXIT in the unexceptional case
+;; Returns (:GOTO <num>) if the program counter must change
 (defun handle-one-keypress (key-string
                             fetch-argument-closure
                             check-for-interrupt-closure
@@ -183,6 +184,16 @@
                  (if arg
                      (format nil " ~A" arg)
                      ""))
+
+           ;; There is one special case in programming.  "goto .<NUM>"
+           ;; doesn't store a new program step, it causes an immediate
+           ;; shift of the program counter
+           (when (and (string= (key-struct-abbrev key) "goto")
+                      (char= (char arg 0) #\.))
+             (return-from handle-one-keypress
+               (list :GOTO (parse-integer (subseq arg 1)))))
+
+           
            (let ((ptext (format nil "~A~A"
                                 (key-struct-abbrev key)
                                 arg)))
@@ -269,7 +280,8 @@
 
 
         (hp67-ui:ui-paint ui)
-        (let ((response (hp67-ui:ui-get-input ui)))
+        (let ((response (hp67-ui:ui-get-input ui))
+              rc)
           (setf quit-requested (hp67-ui:get-quit-requested ui))
           (unless quit-requested
 
@@ -278,15 +290,20 @@
             (when (string= response "")
               (setf response "enter"))
             
-            (handle-one-keypress response
-                                 #'(lambda (x)
-                                     (hp67-ui:ui-get-argument ui x))
-                                 nil stack mode
-                                 :arg-is-num t
-                                 :next-program-step next-program-step)
+            (setf rc
+                  (handle-one-keypress response
+                                       #'(lambda (x)
+                                           (hp67-ui:ui-get-argument ui x))
+                                       nil stack mode
+                                       :arg-is-num t
+                                       :next-program-step next-program-step))
 
             (when programming
-              (incf next-program-step))))))))
+              (cond
+                ((listp rc)
+                 (setf next-program-step (second rc)))
+                (t
+                 (incf next-program-step))))))))))
 
 
         
