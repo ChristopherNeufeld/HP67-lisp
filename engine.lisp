@@ -272,23 +272,19 @@
         (let ((response (hp67-ui:ui-get-input ui)))
           (setf quit-requested (hp67-ui:get-quit-requested ui))
           (unless quit-requested
-            (etypecase response
-              (string
-               (when (string= response "")
-                 (setf response "enter"))
-               (handle-one-keypress response
-                                    #'(lambda (x)
-                                        (hp67-ui:ui-get-argument ui x))
-                                    nil stack mode
-                                    :arg-is-num t
-                                    :next-program-step next-program-step))
-              (key-struct
-               (handle-one-keypress (key-struct-abbrev response)
-                                    #'(lambda (x)
-                                        (hp67-ui:ui-get-argument ui x))
-                                    nil stack mode
-                                    :arg-is-num nil
-                                    :next-program-step next-program-step)))
+
+            (unless (stringp response)
+              (setf response (key-struct-abbrev response)))
+            (when (string= response "")
+              (setf response "enter"))
+            
+            (handle-one-keypress response
+                                 #'(lambda (x)
+                                     (hp67-ui:ui-get-argument ui x))
+                                 nil stack mode
+                                 :arg-is-num t
+                                 :next-program-step next-program-step)
+
             (when programming
               (incf next-program-step))))))))
 
