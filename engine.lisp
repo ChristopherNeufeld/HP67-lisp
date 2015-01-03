@@ -188,15 +188,18 @@
            ;; There is one special case in programming.  "goto .<NUM>"
            ;; doesn't store a new program step, it causes an immediate
            ;; shift of the program counter
+
            (when (and (string= (key-struct-abbrev key) "goto")
-                      (char= (char arg 0) #\.))
+                      (> (length arg) 2)
+                      (char= (char arg 1) #\.))
              (return-from handle-one-keypress
-               (list :GOTO (parse-integer (subseq arg 1)))))
+               (list :GOTO (parse-integer (subseq arg 2)))))
 
            
            (let ((ptext (format nil "~A~A"
                                 (key-struct-abbrev key)
                                 arg)))
+
              (store-program-step stack next-program-step ptext)))
           ((key-struct-takes-arg key)
            (funcall (key-struct-run-mode-fcn key)
@@ -283,27 +286,32 @@
         (let ((response (hp67-ui:ui-get-input ui))
               rc)
           (setf quit-requested (hp67-ui:get-quit-requested ui))
-          (unless quit-requested
+          (cond
+            ((and quit-requested programming)
+             (setf quit-requested nil)
+             (setf (hp67-ui:get-quit-requested ui) nil)
+             (setf (modes-run/prog mode) :RUN-MODE))
+            ((not quit-requested)
 
-            (unless (stringp response)
-              (setf response (key-struct-abbrev response)))
-            (when (string= response "")
-              (setf response "enter"))
-            
-            (setf rc
-                  (handle-one-keypress response
-                                       #'(lambda (x)
-                                           (hp67-ui:ui-get-argument ui x))
-                                       nil stack mode
-                                       :arg-is-num t
-                                       :next-program-step next-program-step))
+             (unless (stringp response)
+               (setf response (key-struct-abbrev response)))
+             (when (string= response "")
+               (setf response "enter"))
+             
+             (setf rc
+                   (handle-one-keypress response
+                                        #'(lambda (x)
+                                            (hp67-ui:ui-get-argument ui x))
+                                        nil stack mode
+                                        :arg-is-num t
+                                        :next-program-step next-program-step))
 
-            (when programming
-              (cond
-                ((listp rc)
-                 (setf next-program-step (second rc)))
-                (t
-                 (incf next-program-step))))))))))
+             (when programming
+               (cond
+                 ((listp rc)
+                  (setf next-program-step (second rc)))
+                 (t
+                  (incf next-program-step)))))))))))
 
 
         
