@@ -34,7 +34,7 @@
 
 (defmethod print-object ((node node) stream)
   (format stream
-          "NODE:~%~Tweight= ~D~%~Tleft= ~A~%~Tright= ~A~%~Tcontents= ~A~%"
+          "NODE:~%~Tweight= ~D~%~Tleft= ~A~%~Tright= ~A~%~Tcontents= ~S~%"
           (node-weight node)
           (node-left-child node) (node-right-child node)
           (node-contents node)))
@@ -216,7 +216,7 @@
    node."
   (cond
     ((and (node-left-child node)
-          (<= index (node-weight node)))
+          (< index (node-weight node)))
      (locate-node (node-left-child node) index))
     ((node-right-child node)
      (locate-node (node-right-child node)
